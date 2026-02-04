@@ -242,23 +242,25 @@ profit_margin = (list_price - cost_price) / list_price * 100
 **Propósito:** Marketing y relación con clientes
 
 **CAMPAIGNS:**
-| Columna | Descripción |
-|--------- |------------- |
-| name | Nombre de la campaña |
-| campaign_type | email, webinar, trade_show, promotion |
-| channel | email, social, direct_mail, events |
-| start_date, end_date | Período de campaña |
-| budget | Presupuesto asignado |
-| impressions, clicks, conversions | Métricas |
-| revenue_generated | Ingresos atribuibles |
+
+| Columna                          | Descripción                           |
+| -------------------------------- | ------------------------------------- |
+| name                             | Nombre de la campaña                  |
+| campaign_type                    | email, webinar, trade_show, promotion |
+| channel                          | email, social, direct_mail, events    |
+| start_date, end_date             | Período de campaña                    |
+| budget                           | Presupuesto asignado                  |
+| impressions, clicks, conversions | Métricas                              |
+| revenue_generated                | Ingresos atribuibles                  |
 
 **CAMPAIGN_CUSTOMERS:**
-| Columna | Descripción |
-|---------|-------------|
-| campaign_id | FK → campaigns |
-| customer_id | FK → customers |
-| contacted_date | Cuándo se contactó |
-| opened, clicked, converted | Engagement flags |
+
+| Columna                    | Descripción        |
+| -------------------------- | ------------------ |
+| campaign_id                | FK → campaigns     |
+| customer_id                | FK → customers     |
+| contacted_date             | Cuándo se contactó |
+| opened, clicked, converted | Engagement flags   |
 
 ---
 
