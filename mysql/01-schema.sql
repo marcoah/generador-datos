@@ -1,0 +1,9 @@
+-- ============================================================================
+-- SCHEMA DE BASE DE DATOS - SISTEMA DE VENTAS
+-- MySQL Script para crear un esquema de base de datos de ventas
+-- ============================================================================
+-- Este schema está diseñado para:
+-- 1. Generar datos realistas de ventas
+-- 2. Soportar análisis complejos en Power BI y dashboards custom
+-- 3. Ser fácil de limpiar y resetear para pruebas
+-- ============================================================================

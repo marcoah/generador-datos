@@ -1,4 +1,4 @@
-# generador-datos
+# Sistema Generador de datos para pruebas
 
 Codigo para generar dataset para pruebas de BI
 

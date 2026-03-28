@@ -52,23 +52,23 @@ INTERACCIÓN (CRM)
 
 **Propósito:** Información completa de clientes
 
-| Columna             | Tipo          | Descripción                                       |
-| ------------------- | ------------- | ------------------------------------------------- |
-| id                  | BIGSERIAL     | PK                                                |
-| uuid                | UUID          | Identificador único universal                     |
-| nombre              | VARCHAR(255)  | Nombre completo del cliente                       |
-| email               | VARCHAR(255)  | Email único                                       |
-| segmento            | VARCHAR(50)   | premium, estandar, prueba, vip, inactivo          |
-| industria           | VARCHAR(100)  | Sector (Tecnología, Finanzas, Salud, etc.)        |
-| tamaño_empresa      | VARCHAR(50)   | startup, pequeña, mediana, grande, corporacion    |
-| pais                | VARCHAR(100)  | País                                              |
-| provincia           | VARCHAR(100)  | Provincia / Estado                                |
-| ciudad              | VARCHAR(100)  | Ciudad                                            |
-| limite_credito      | NUMERIC(15,2) | Límite de crédito                                 |
-| valor_vida_total    | NUMERIC(15,2) | Calculado automáticamente vía trigger             |
-| fecha_adquisicion   | TIMESTAMP     | Fecha de alta del cliente                         |
-| fecha_ultima_compra | TIMESTAMP     | Última compra (actualizada por trigger)           |
-| activo              | BOOLEAN       | Estado activo / inactivo                          |
+| Columna             | Tipo          | Descripción                                    |
+| ------------------- | ------------- | ---------------------------------------------- |
+| id                  | BIGSERIAL     | PK                                             |
+| uuid                | UUID          | Identificador único universal                  |
+| nombre              | VARCHAR(255)  | Nombre completo del cliente                    |
+| email               | VARCHAR(255)  | Email único                                    |
+| segmento            | VARCHAR(50)   | premium, estandar, prueba, vip, inactivo       |
+| industria           | VARCHAR(100)  | Sector (Tecnología, Finanzas, Salud, etc.)     |
+| tamaño_empresa      | VARCHAR(50)   | startup, pequeña, mediana, grande, corporacion |
+| pais                | VARCHAR(100)  | País                                           |
+| provincia           | VARCHAR(100)  | Provincia / Estado                             |
+| ciudad              | VARCHAR(100)  | Ciudad                                         |
+| limite_credito      | NUMERIC(15,2) | Límite de crédito                              |
+| valor_vida_total    | NUMERIC(15,2) | Calculado automáticamente vía trigger          |
+| fecha_adquisicion   | TIMESTAMP     | Fecha de alta del cliente                      |
+| fecha_ultima_compra | TIMESTAMP     | Última compra (actualizada por trigger)        |
+| activo              | BOOLEAN       | Estado activo / inactivo                       |
 
 **Índices Principales:** segmento, pais, activo, fecha_adquisicion
 
@@ -78,20 +78,20 @@ INTERACCIÓN (CRM)
 
 **Propósito:** Catálogo de productos
 
-| Columna               | Tipo          | Descripción                                      |
-| --------------------- | ------------- | ------------------------------------------------ |
-| id                    | BIGSERIAL     | PK                                               |
-| sku                   | VARCHAR(50)   | Código único de producto (UNIQUE)                |
-| nombre                | VARCHAR(255)  | Nombre del producto                              |
-| categoria             | VARCHAR(100)  | Categoría (Electrónica, Software, Servicios...)  |
-| subcategoria          | VARCHAR(100)  | Subcategoría                                     |
-| marca                 | VARCHAR(100)  | Marca                                            |
-| precio_lista          | NUMERIC(10,2) | Precio de venta al público                       |
-| precio_costo          | NUMERIC(10,2) | Costo de adquisición                             |
-| stock_actual          | INT           | Stock disponible                                 |
-| activo                | BOOLEAN       | Producto activo                                  |
-| fecha_lanzamiento     | DATE          | Fecha de lanzamiento                             |
-| fecha_descontinuacion | DATE          | Fecha de discontinuación                         |
+| Columna               | Tipo          | Descripción                                     |
+| --------------------- | ------------- | ----------------------------------------------- |
+| id                    | BIGSERIAL     | PK                                              |
+| sku                   | VARCHAR(50)   | Código único de producto (UNIQUE)               |
+| nombre                | VARCHAR(255)  | Nombre del producto                             |
+| categoria             | VARCHAR(100)  | Categoría (Electrónica, Software, Servicios...) |
+| subcategoria          | VARCHAR(100)  | Subcategoría                                    |
+| marca                 | VARCHAR(100)  | Marca                                           |
+| precio_lista          | NUMERIC(10,2) | Precio de venta al público                      |
+| precio_costo          | NUMERIC(10,2) | Costo de adquisición                            |
+| stock_actual          | INT           | Stock disponible                                |
+| activo                | BOOLEAN       | Producto activo                                 |
+| fecha_lanzamiento     | DATE          | Fecha de lanzamiento                            |
+| fecha_descontinuacion | DATE          | Fecha de discontinuación                        |
 
 **Índices Principales:** sku, categoria, marca, activo
 
@@ -107,17 +107,17 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** Datos de vendedores y performance
 
-| Columna            | Tipo          | Descripción                               |
-| ------------------ | ------------- | ----------------------------------------- |
-| id                 | BIGSERIAL     | PK                                        |
-| nombre             | VARCHAR(255)  | Nombre completo                           |
-| equipo             | VARCHAR(100)  | Equipo (Empresas, PyMEs, Startups, etc.)  |
-| territorio         | VARCHAR(100)  | Territorio (Norte, Sur, Este, etc.)       |
-| gerente_id         | BIGINT        | FK a vendedor gerente (autorreferencia)   |
-| tasa_comision      | NUMERIC(5,2)  | Porcentaje de comisión                    |
-| cuota_mensual      | NUMERIC(15,2) | Cuota de ventas mensual                   |
-| activo             | BOOLEAN       | Vendedor activo                           |
-| fecha_contratacion | DATE          | Fecha de ingreso                          |
+| Columna            | Tipo          | Descripción                              |
+| ------------------ | ------------- | ---------------------------------------- |
+| id                 | BIGSERIAL     | PK                                       |
+| nombre             | VARCHAR(255)  | Nombre completo                          |
+| equipo             | VARCHAR(100)  | Equipo (Empresas, PyMEs, Startups, etc.) |
+| territorio         | VARCHAR(100)  | Territorio (Norte, Sur, Este, etc.)      |
+| gerente_id         | BIGINT        | FK a vendedor gerente (autorreferencia)  |
+| tasa_comision      | NUMERIC(5,2)  | Porcentaje de comisión                   |
+| cuota_mensual      | NUMERIC(15,2) | Cuota de ventas mensual                  |
+| activo             | BOOLEAN       | Vendedor activo                          |
+| fecha_contratacion | DATE          | Fecha de ingreso                         |
 
 **Índices Principales:** equipo, territorio, activo
 
@@ -127,23 +127,23 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** Registro de todas las órdenes de ventas
 
-| Columna                  | Tipo          | Descripción                                                                  |
-| ------------------------ | ------------- | ---------------------------------------------------------------------------- |
-| id                       | BIGSERIAL     | PK                                                                           |
-| cliente_id               | BIGINT        | FK → clientes                                                                |
-| vendedor_id              | BIGINT        | FK → vendedores (nullable)                                                   |
-| fecha_orden              | TIMESTAMP     | Fecha de la orden                                                            |
-| estado                   | VARCHAR(50)   | pendiente, confirmado, procesando, enviado, entregado, cancelado, devuelto   |
-| subtotal                 | NUMERIC(15,2) | Suma antes de descuentos                                                     |
-| monto_descuento          | NUMERIC(15,2) | Monto de descuento                                                           |
-| porcentaje_descuento     | NUMERIC(5,2)  | Porcentaje de descuento                                                      |
-| monto_impuesto           | NUMERIC(15,2) | Impuestos                                                                    |
-| costo_envio              | NUMERIC(15,2) | Costo de envío                                                               |
-| monto_total              | NUMERIC(15,2) | **Total final = subtotal - descuento + impuesto + envío**                    |
-| metodo_pago              | VARCHAR(50)   | tarjeta_credito, transferencia_bancaria, efectivo, cheque                    |
-| estado_pago              | VARCHAR(50)   | pendiente, parcial, pagado, vencido, reembolsado                             |
-| notas                    | TEXT          | Notas visibles al cliente                                                    |
-| notas_internas           | TEXT          | Notas internas del equipo                                                    |
+| Columna              | Tipo          | Descripción                                                                |
+| -------------------- | ------------- | -------------------------------------------------------------------------- |
+| id                   | BIGSERIAL     | PK                                                                         |
+| cliente_id           | BIGINT        | FK → clientes                                                              |
+| vendedor_id          | BIGINT        | FK → vendedores (nullable)                                                 |
+| fecha_orden          | TIMESTAMP     | Fecha de la orden                                                          |
+| estado               | VARCHAR(50)   | pendiente, confirmado, procesando, enviado, entregado, cancelado, devuelto |
+| subtotal             | NUMERIC(15,2) | Suma antes de descuentos                                                   |
+| monto_descuento      | NUMERIC(15,2) | Monto de descuento                                                         |
+| porcentaje_descuento | NUMERIC(5,2)  | Porcentaje de descuento                                                    |
+| monto_impuesto       | NUMERIC(15,2) | Impuestos                                                                  |
+| costo_envio          | NUMERIC(15,2) | Costo de envío                                                             |
+| monto_total          | NUMERIC(15,2) | **Total final = subtotal - descuento + impuesto + envío**                  |
+| metodo_pago          | VARCHAR(50)   | tarjeta_credito, transferencia_bancaria, efectivo, cheque                  |
+| estado_pago          | VARCHAR(50)   | pendiente, parcial, pagado, vencido, reembolsado                           |
+| notas                | TEXT          | Notas visibles al cliente                                                  |
+| notas_internas       | TEXT          | Notas internas del equipo                                                  |
 
 **Índices:** cliente_id, vendedor_id, fecha_orden, estado, estado_pago, creado_en
 
@@ -158,18 +158,18 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** Detalles de cada línea de una orden
 
-| Columna              | Tipo          | Descripción                                                  |
-| -------------------- | ------------- | ------------------------------------------------------------ |
-| id                   | BIGSERIAL     | PK                                                           |
-| orden_id             | BIGINT        | FK → ordenes (CASCADE)                                       |
-| producto_id          | BIGINT        | FK → productos                                               |
-| cantidad             | INT           | Cantidad pedida                                              |
-| precio_unitario      | NUMERIC(10,2) | Precio unitario al momento de la venta                       |
-| porcentaje_descuento | NUMERIC(5,2)  | Descuento por línea                                          |
-| total_linea          | NUMERIC(15,2) | **GENERADO: cantidad × precio_unitario × (1 - descuento%)**  |
-| completado           | BOOLEAN       | ¿Línea despachada?                                           |
-| cantidad_devuelta    | INT           | Cantidad devuelta                                            |
-| motivo_devolucion    | VARCHAR(255)  | Razón de la devolución                                       |
+| Columna              | Tipo          | Descripción                                                 |
+| -------------------- | ------------- | ----------------------------------------------------------- |
+| id                   | BIGSERIAL     | PK                                                          |
+| orden_id             | BIGINT        | FK → ordenes (CASCADE)                                      |
+| producto_id          | BIGINT        | FK → productos                                              |
+| cantidad             | INT           | Cantidad pedida                                             |
+| precio_unitario      | NUMERIC(10,2) | Precio unitario al momento de la venta                      |
+| porcentaje_descuento | NUMERIC(5,2)  | Descuento por línea                                         |
+| total_linea          | NUMERIC(15,2) | **GENERADO: cantidad × precio_unitario × (1 - descuento%)** |
+| completado           | BOOLEAN       | ¿Línea despachada?                                          |
+| cantidad_devuelta    | INT           | Cantidad devuelta                                           |
+| motivo_devolucion    | VARCHAR(255)  | Razón de la devolución                                      |
 
 **Características:**
 
@@ -182,15 +182,15 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** Registro de transacciones de pago
 
-| Columna           | Tipo          | Descripción                           |
-| ----------------- | ------------- | ------------------------------------- |
-| id                | BIGSERIAL     | PK                                    |
-| orden_id          | BIGINT        | FK → ordenes                          |
-| monto             | NUMERIC(15,2) | Monto pagado                          |
-| fecha_pago        | TIMESTAMP     | Fecha del pago                        |
-| metodo_pago       | VARCHAR(50)   | Método utilizado                      |
-| estado            | VARCHAR(50)   | completado, fallido, reembolsado      |
-| numero_referencia | VARCHAR(100)  | Número de referencia / comprobante    |
+| Columna           | Tipo          | Descripción                        |
+| ----------------- | ------------- | ---------------------------------- |
+| id                | BIGSERIAL     | PK                                 |
+| orden_id          | BIGINT        | FK → ordenes                       |
+| monto             | NUMERIC(15,2) | Monto pagado                       |
+| fecha_pago        | TIMESTAMP     | Fecha del pago                     |
+| metodo_pago       | VARCHAR(50)   | Método utilizado                   |
+| estado            | VARCHAR(50)   | completado, fallido, reembolsado   |
+| numero_referencia | VARCHAR(100)  | Número de referencia / comprobante |
 
 **Nota:** Una orden puede tener múltiples pagos (pagos parciales).
 
@@ -200,15 +200,15 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** Registro de devoluciones y reembolsos
 
-| Columna          | Tipo          | Descripción                                          |
-| ---------------- | ------------- | ---------------------------------------------------- |
-| id               | BIGSERIAL     | PK                                                   |
-| orden_id         | BIGINT        | FK → ordenes                                         |
-| fecha_devolucion | TIMESTAMP     | Fecha de solicitud                                   |
-| motivo           | VARCHAR(255)  | Motivo (defectuoso, producto_incorrecto, etc.)       |
-| monto_reembolso  | NUMERIC(15,2) | Monto a reembolsar                                   |
-| estado           | VARCHAR(50)   | pendiente, aprobado, rechazado, reembolsado          |
-| aprobado_por     | VARCHAR(100)  | Usuario que aprobó la devolución                     |
+| Columna          | Tipo          | Descripción                                    |
+| ---------------- | ------------- | ---------------------------------------------- |
+| id               | BIGSERIAL     | PK                                             |
+| orden_id         | BIGINT        | FK → ordenes                                   |
+| fecha_devolucion | TIMESTAMP     | Fecha de solicitud                             |
+| motivo           | VARCHAR(255)  | Motivo (defectuoso, producto_incorrecto, etc.) |
+| monto_reembolso  | NUMERIC(15,2) | Monto a reembolsar                             |
+| estado           | VARCHAR(50)   | pendiente, aprobado, rechazado, reembolsado    |
+| aprobado_por     | VARCHAR(100)  | Usuario que aprobó la devolución               |
 
 ---
 
@@ -216,17 +216,17 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **Propósito:** CRM - Registro de contactos y seguimientos
 
-| Columna                    | Tipo         | Descripción                                      |
-| -------------------------- | ------------ | ------------------------------------------------ |
-| id                         | BIGSERIAL    | PK                                               |
-| cliente_id                 | BIGINT       | FK → clientes                                    |
-| vendedor_id                | BIGINT       | FK → vendedores                                  |
-| tipo_interaccion           | VARCHAR(50)  | llamada, email, reunion, demo, soporte           |
-| asunto                     | VARCHAR(255) | Asunto de la interacción                         |
-| resultado                  | VARCHAR(100) | interesado, no_interesado, demo_programada, etc. |
-| fecha_proximo_seguimiento  | DATE         | Próximo seguimiento programado                   |
-| fecha_interaccion          | TIMESTAMP    | Fecha del contacto                               |
-| duracion_minutos           | INT          | Duración en minutos                              |
+| Columna                   | Tipo         | Descripción                                      |
+| ------------------------- | ------------ | ------------------------------------------------ |
+| id                        | BIGSERIAL    | PK                                               |
+| cliente_id                | BIGINT       | FK → clientes                                    |
+| vendedor_id               | BIGINT       | FK → vendedores                                  |
+| tipo_interaccion          | VARCHAR(50)  | llamada, email, reunion, demo, soporte           |
+| asunto                    | VARCHAR(255) | Asunto de la interacción                         |
+| resultado                 | VARCHAR(100) | interesado, no_interesado, demo_programada, etc. |
+| fecha_proximo_seguimiento | DATE         | Próximo seguimiento programado                   |
+| fecha_interaccion         | TIMESTAMP    | Fecha del contacto                               |
+| duracion_minutos          | INT          | Duración en minutos                              |
 
 ---
 
@@ -236,27 +236,27 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 **CAMPANAS:**
 
-| Columna             | Descripción                                       |
-| ------------------- | ------------------------------------------------- |
-| nombre              | Nombre de la campaña                              |
-| tipo_campana        | email, webinar, feria, promocion, estacional      |
-| canal               | email, redes_sociales, correo_directo, eventos    |
-| fecha_inicio/fin    | Período de la campaña                             |
-| presupuesto         | Presupuesto asignado                              |
-| impresiones/clics   | Métricas de alcance                               |
-| conversiones        | Cantidad de conversiones                          |
-| ingresos_generados  | Ingresos atribuibles a la campaña                 |
+| Columna            | Descripción                                    |
+| ------------------ | ---------------------------------------------- |
+| nombre             | Nombre de la campaña                           |
+| tipo_campana       | email, webinar, feria, promocion, estacional   |
+| canal              | email, redes_sociales, correo_directo, eventos |
+| fecha_inicio/fin   | Período de la campaña                          |
+| presupuesto        | Presupuesto asignado                           |
+| impresiones/clics  | Métricas de alcance                            |
+| conversiones       | Cantidad de conversiones                       |
+| ingresos_generados | Ingresos atribuibles a la campaña              |
 
 **CAMPANAS_CLIENTES:**
 
-| Columna         | Descripción                          |
-| --------------- | ------------------------------------ |
-| campana_id      | FK → campanas                        |
-| cliente_id      | FK → clientes                        |
-| fecha_contacto  | Cuándo se realizó el contacto        |
-| abierto         | Si abrió el mensaje                  |
-| hizo_clic       | Si hizo clic en el enlace            |
-| convirtio       | Si se concretó la conversión         |
+| Columna        | Descripción                   |
+| -------------- | ----------------------------- |
+| campana_id     | FK → campanas                 |
+| cliente_id     | FK → clientes                 |
+| fecha_contacto | Cuándo se realizó el contacto |
+| abierto        | Si abrió el mensaje           |
+| hizo_clic      | Si hizo clic en el enlace     |
+| convirtio      | Si se concretó la conversión  |
 
 ---
 
@@ -356,6 +356,7 @@ cheque                 → Pago con cheque
 Resumen diario de ventas con KPIs principales.
 
 **Columnas principales:**
+
 - fecha_venta, cantidad_ordenes, clientes_unicos, vendedores_involucrados
 - ingresos_totales, valor_promedio_orden, orden_minima, orden_maxima
 - ordenes_entregadas, ordenes_canceladas, ordenes_pagadas
@@ -373,6 +374,7 @@ ORDER BY fecha_venta DESC;
 Performance por categoría y subcategoría de productos.
 
 **Columnas principales:**
+
 - categoria, subcategoria
 - cantidad_ordenes, unidades_vendidas, cantidad_total
 - ingresos_totales, margen_ganancia_pct
@@ -383,6 +385,7 @@ Performance por categoría y subcategoría de productos.
 KPIs individuales de vendedores.
 
 **Columnas principales:**
+
 - nombre, equipo, territorio
 - total_ordenes, clientes_unicos, ventas_totales
 - ventas_mes_actual, porcentaje_cumplimiento_cuota
@@ -393,6 +396,7 @@ KPIs individuales de vendedores.
 Análisis de clientes por segmento.
 
 **Columnas principales:**
+
 - segmento, industria, tamaño_empresa
 - valor_vida, valor_promedio_orden
 - fecha_ultima_compra, dias_desde_ultima_compra
@@ -403,6 +407,7 @@ Análisis de clientes por segmento.
 Análisis de flujos de pago.
 
 **Columnas principales:**
+
 - fecha_pago, metodo_pago
 - cantidad_pagos, total_cobrado
 - pagos_exitosos, pagos_fallidos
@@ -413,6 +418,7 @@ Análisis de flujos de pago.
 Análisis de devoluciones por categoría.
 
 **Columnas principales:**
+
 - fecha_devolucion, categoria
 - cantidad_devoluciones, total_reembolsado
 - tasa_devolucion_pct
@@ -423,6 +429,7 @@ Análisis de devoluciones por categoría.
 Métricas de campañas de marketing.
 
 **Columnas principales:**
+
 - nombre, tipo_campana, canal
 - presupuesto, gasto_real, roi
 - ctr_pct, tasa_conversion_pct
