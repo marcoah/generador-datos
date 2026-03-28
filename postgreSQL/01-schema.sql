@@ -1,5 +1,5 @@
 -- ============================================================================
--- SALES TEST DATABASE SCHEMA
+-- SCHEMA DE BASE DE DATOS - SISTEMA DE VENTAS
 -- PostgreSQL 14+
 -- ============================================================================
 -- Este schema está diseñado para:
@@ -13,458 +13,458 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- ============================================================================
--- DIMENSION: CLIENTES
+-- DIMENSIÓN: CLIENTES
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS customers (
+CREATE TABLE IF NOT EXISTS clientes (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE,
-    phone VARCHAR(20),
-    
+    telefono VARCHAR(20),
+
     -- Segmentación
-    segment VARCHAR(50) NOT NULL DEFAULT 'standard',
-        -- Valores: premium, standard, trial, vip, inactive
-    industry VARCHAR(100),
-    company_size VARCHAR(50),
-        -- Valores: startup, small, medium, large, enterprise
-    
+    segmento VARCHAR(50) NOT NULL DEFAULT 'estandar',
+        -- Valores: premium, estandar, prueba, vip, inactivo
+    industria VARCHAR(100),
+    tamaño_empresa VARCHAR(50),
+        -- Valores: startup, pequeña, mediana, grande, corporacion
+
     -- Ubicación
-    country VARCHAR(100),
-    state VARCHAR(100),
-    city VARCHAR(100),
-    postal_code VARCHAR(20),
-    
+    pais VARCHAR(100),
+    provincia VARCHAR(100),
+    ciudad VARCHAR(100),
+    codigo_postal VARCHAR(20),
+
     -- Información financiera
-    credit_limit NUMERIC(15,2),
-    total_lifetime_value NUMERIC(15,2) DEFAULT 0,
-    
+    limite_credito NUMERIC(15,2),
+    valor_vida_total NUMERIC(15,2) DEFAULT 0,
+
     -- Metadatos
-    acquisition_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_purchase_date TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE,
-    notes TEXT,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_adquisicion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultima_compra TIMESTAMP,
+    activo BOOLEAN DEFAULT TRUE,
+    notas TEXT,
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_customers_segment ON customers(segment);
-CREATE INDEX idx_customers_country ON customers(country);
-CREATE INDEX idx_customers_is_active ON customers(is_active);
-CREATE INDEX idx_customers_acquisition_date ON customers(acquisition_date);
+CREATE INDEX idx_clientes_segmento ON clientes(segmento);
+CREATE INDEX idx_clientes_pais ON clientes(pais);
+CREATE INDEX idx_clientes_activo ON clientes(activo);
+CREATE INDEX idx_clientes_fecha_adquisicion ON clientes(fecha_adquisicion);
 
 -- ============================================================================
--- DIMENSION: PRODUCTOS
+-- DIMENSIÓN: PRODUCTOS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE IF NOT EXISTS productos (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
     sku VARCHAR(50) UNIQUE NOT NULL,
-    description TEXT,
-    
+    descripcion TEXT,
+
     -- Categorización
-    category VARCHAR(100) NOT NULL,
-    subcategory VARCHAR(100),
-    brand VARCHAR(100),
-    
+    categoria VARCHAR(100) NOT NULL,
+    subcategoria VARCHAR(100),
+    marca VARCHAR(100),
+
     -- Precios
-    list_price NUMERIC(10,2) NOT NULL,
-    cost_price NUMERIC(10,2),
-    
+    precio_lista NUMERIC(10,2) NOT NULL,
+    precio_costo NUMERIC(10,2),
+
     -- Stock
-    current_stock INT DEFAULT 0,
-    minimum_stock INT DEFAULT 10,
-    
+    stock_actual INT DEFAULT 0,
+    stock_minimo INT DEFAULT 10,
+
     -- Propiedades
-    weight_kg NUMERIC(8,2),
-    volume_m3 NUMERIC(8,3),
-    is_digital BOOLEAN DEFAULT FALSE,
-    
+    peso_kg NUMERIC(8,2),
+    volumen_m3 NUMERIC(8,3),
+    es_digital BOOLEAN DEFAULT FALSE,
+
     -- Ciclo de vida del producto
-    launch_date DATE,
-    discontinue_date DATE,
-    is_active BOOLEAN DEFAULT TRUE,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_lanzamiento DATE,
+    fecha_descontinuacion DATE,
+    activo BOOLEAN DEFAULT TRUE,
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_products_category ON products(category);
-CREATE INDEX idx_products_sku ON products(sku);
-CREATE INDEX idx_products_is_active ON products(is_active);
-CREATE INDEX idx_products_brand ON products(brand);
+CREATE INDEX idx_productos_categoria ON productos(categoria);
+CREATE INDEX idx_productos_sku ON productos(sku);
+CREATE INDEX idx_productos_activo ON productos(activo);
+CREATE INDEX idx_productos_marca ON productos(marca);
 
 -- ============================================================================
--- DIMENSION: VENDEDORES/REPRESENTANTES
+-- DIMENSIÓN: VENDEDORES
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS salespeople (
+CREATE TABLE IF NOT EXISTS vendedores (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE,
-    phone VARCHAR(20),
-    
+    telefono VARCHAR(20),
+
     -- Organización
-    team VARCHAR(100),
-    territory VARCHAR(100),
-    manager_id BIGINT REFERENCES salespeople(id) ON DELETE SET NULL,
-    
+    equipo VARCHAR(100),
+    territorio VARCHAR(100),
+    gerente_id BIGINT REFERENCES vendedores(id) ON DELETE SET NULL,
+
     -- Performance
-    commission_rate NUMERIC(5,2) DEFAULT 0,
-    quota_monthly NUMERIC(15,2),
-    
+    tasa_comision NUMERIC(5,2) DEFAULT 0,
+    cuota_mensual NUMERIC(15,2),
+
     -- Estatus
-    is_active BOOLEAN DEFAULT TRUE,
-    hire_date DATE,
-    termination_date DATE,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_contratacion DATE,
+    fecha_baja DATE,
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_salespeople_team ON salespeople(team);
-CREATE INDEX idx_salespeople_territory ON salespeople(territory);
-CREATE INDEX idx_salespeople_is_active ON salespeople(is_active);
+CREATE INDEX idx_vendedores_equipo ON vendedores(equipo);
+CREATE INDEX idx_vendedores_territorio ON vendedores(territorio);
+CREATE INDEX idx_vendedores_activo ON vendedores(activo);
 
 -- ============================================================================
 -- HECHO: ÓRDENES DE VENTAS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE IF NOT EXISTS ordenes (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    
+
     -- Foreign Keys
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
-    salesperson_id BIGINT REFERENCES salespeople(id) ON DELETE SET NULL,
-    
+    cliente_id BIGINT NOT NULL REFERENCES clientes(id) ON DELETE RESTRICT,
+    vendedor_id BIGINT REFERENCES vendedores(id) ON DELETE SET NULL,
+
     -- Fechas clave
-    order_date TIMESTAMP NOT NULL,
-    promised_delivery_date DATE,
-    actual_delivery_date DATE,
-    
+    fecha_orden TIMESTAMP NOT NULL,
+    fecha_entrega_prometida DATE,
+    fecha_entrega_real DATE,
+
     -- Montos
     subtotal NUMERIC(15,2) NOT NULL DEFAULT 0,
-    discount_amount NUMERIC(15,2) DEFAULT 0,
-    discount_percent NUMERIC(5,2) DEFAULT 0,
-    tax_amount NUMERIC(15,2) DEFAULT 0,
-    shipping_cost NUMERIC(15,2) DEFAULT 0,
-    total_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
-    
+    monto_descuento NUMERIC(15,2) DEFAULT 0,
+    porcentaje_descuento NUMERIC(5,2) DEFAULT 0,
+    monto_impuesto NUMERIC(15,2) DEFAULT 0,
+    costo_envio NUMERIC(15,2) DEFAULT 0,
+    monto_total NUMERIC(15,2) NOT NULL DEFAULT 0,
+
     -- Información de pago
-    payment_method VARCHAR(50),
-        -- Valores: credit_card, bank_transfer, cash, check, other
-    payment_status VARCHAR(50) DEFAULT 'pending',
-        -- Valores: pending, partial, paid, overdue, refunded
-    payment_date TIMESTAMP,
-    
+    metodo_pago VARCHAR(50),
+        -- Valores: tarjeta_credito, transferencia_bancaria, efectivo, cheque, otro
+    estado_pago VARCHAR(50) DEFAULT 'pendiente',
+        -- Valores: pendiente, parcial, pagado, vencido, reembolsado
+    fecha_pago TIMESTAMP,
+
     -- Estado de la orden
-    status VARCHAR(50) DEFAULT 'pending',
-        -- Valores: pending, confirmed, processing, shipped, delivered, cancelled, returned
-    
+    estado VARCHAR(50) DEFAULT 'pendiente',
+        -- Valores: pendiente, confirmado, procesando, enviado, entregado, cancelado, devuelto
+
     -- Notas
-    notes TEXT,
-    internal_notes TEXT,
-    
+    notas TEXT,
+    notas_internas TEXT,
+
     -- Auditoría
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(100)
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    creado_por VARCHAR(100)
 );
 
-CREATE INDEX idx_orders_customer_id ON orders(customer_id);
-CREATE INDEX idx_orders_salesperson_id ON orders(salesperson_id);
-CREATE INDEX idx_orders_order_date ON orders(order_date);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_payment_status ON orders(payment_status);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX idx_ordenes_cliente_id ON ordenes(cliente_id);
+CREATE INDEX idx_ordenes_vendedor_id ON ordenes(vendedor_id);
+CREATE INDEX idx_ordenes_fecha_orden ON ordenes(fecha_orden);
+CREATE INDEX idx_ordenes_estado ON ordenes(estado);
+CREATE INDEX idx_ordenes_estado_pago ON ordenes(estado_pago);
+CREATE INDEX idx_ordenes_creado_en ON ordenes(creado_en);
 
 -- ============================================================================
--- DETALLE: ITEMS DE ÓRDENES
+-- DETALLE: ÍTEMS DE ÓRDENES
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS order_items (
+CREATE TABLE IF NOT EXISTS items_orden (
     id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-    
+    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+    producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
+
     -- Cantidad y precio
-    quantity INT NOT NULL CHECK (quantity > 0),
-    unit_price NUMERIC(10,2) NOT NULL,
-    discount_percent NUMERIC(5,2) DEFAULT 0,
-    line_total NUMERIC(15,2) GENERATED ALWAYS AS 
-        (quantity * unit_price * (1 - discount_percent / 100)) STORED,
-    
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario NUMERIC(10,2) NOT NULL,
+    porcentaje_descuento NUMERIC(5,2) DEFAULT 0,
+    total_linea NUMERIC(15,2) GENERATED ALWAYS AS
+        (cantidad * precio_unitario * (1 - porcentaje_descuento / 100)) STORED,
+
     -- Control de inventario
-    warehouse_location VARCHAR(100),
-    fulfilled BOOLEAN DEFAULT FALSE,
-    
+    ubicacion_almacen VARCHAR(100),
+    completado BOOLEAN DEFAULT FALSE,
+
     -- Devoluciones
-    returned_quantity INT DEFAULT 0,
-    return_reason VARCHAR(255),
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    cantidad_devuelta INT DEFAULT 0,
+    motivo_devolucion VARCHAR(255),
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX idx_order_items_product_id ON order_items(product_id);
-CREATE INDEX idx_order_items_fulfilled ON order_items(fulfilled);
+CREATE INDEX idx_items_orden_orden_id ON items_orden(orden_id);
+CREATE INDEX idx_items_orden_producto_id ON items_orden(producto_id);
+CREATE INDEX idx_items_orden_completado ON items_orden(completado);
 
 -- ============================================================================
 -- TRANSACCIONES: PAGOS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE IF NOT EXISTS pagos (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
-    
+    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE RESTRICT,
+
     -- Monto
-    amount NUMERIC(15,2) NOT NULL,
-    payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+    monto NUMERIC(15,2) NOT NULL,
+    fecha_pago TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     -- Método
-    payment_method VARCHAR(50) NOT NULL,
-    reference_number VARCHAR(100),
-    
+    metodo_pago VARCHAR(50) NOT NULL,
+    numero_referencia VARCHAR(100),
+
     -- Estado
-    status VARCHAR(50) DEFAULT 'completed',
-        -- Valores: pending, completed, failed, refunded
-    
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    estado VARCHAR(50) DEFAULT 'completado',
+        -- Valores: pendiente, completado, fallido, reembolsado
+
+    notas TEXT,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_payments_order_id ON payments(order_id);
-CREATE INDEX idx_payments_payment_date ON payments(payment_date);
-CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX idx_pagos_orden_id ON pagos(orden_id);
+CREATE INDEX idx_pagos_fecha_pago ON pagos(fecha_pago);
+CREATE INDEX idx_pagos_estado ON pagos(estado);
 
 -- ============================================================================
 -- DEVOLUCIONES / REEMBOLSOS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS returns (
+CREATE TABLE IF NOT EXISTS devoluciones (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
-    
+    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE RESTRICT,
+
     -- Información
-    return_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    reason VARCHAR(255) NOT NULL,
-    description TEXT,
-    
+    fecha_devolucion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivo VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+
     -- Monto
-    refund_amount NUMERIC(15,2) NOT NULL,
-    refund_date TIMESTAMP,
-    
+    monto_reembolso NUMERIC(15,2) NOT NULL,
+    fecha_reembolso TIMESTAMP,
+
     -- Estado
-    status VARCHAR(50) DEFAULT 'pending',
-        -- Valores: pending, approved, rejected, refunded, partial_refund
-    
-    approved_by VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    estado VARCHAR(50) DEFAULT 'pendiente',
+        -- Valores: pendiente, aprobado, rechazado, reembolsado, reembolso_parcial
+
+    aprobado_por VARCHAR(100),
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_returns_order_id ON returns(order_id);
-CREATE INDEX idx_returns_return_date ON returns(return_date);
-CREATE INDEX idx_returns_status ON returns(status);
+CREATE INDEX idx_devoluciones_orden_id ON devoluciones(orden_id);
+CREATE INDEX idx_devoluciones_fecha_devolucion ON devoluciones(fecha_devolucion);
+CREATE INDEX idx_devoluciones_estado ON devoluciones(estado);
 
 -- ============================================================================
--- CONTACTOS / INTERACCIONES
+-- INTERACCIONES CON CLIENTES (CRM)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS customer_interactions (
+CREATE TABLE IF NOT EXISTS interacciones_clientes (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    salesperson_id BIGINT REFERENCES salespeople(id) ON DELETE SET NULL,
-    
+    cliente_id BIGINT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+    vendedor_id BIGINT REFERENCES vendedores(id) ON DELETE SET NULL,
+
     -- Tipo de interacción
-    interaction_type VARCHAR(50) NOT NULL,
-        -- Valores: call, email, meeting, demo, support, follow_up
-    
+    tipo_interaccion VARCHAR(50) NOT NULL,
+        -- Valores: llamada, email, reunion, demo, soporte, seguimiento
+
     -- Contenido
-    subject VARCHAR(255),
-    notes TEXT,
-    
+    asunto VARCHAR(255),
+    notas TEXT,
+
     -- Resultado
-    outcome VARCHAR(100),
-        -- Valores: interested, not_interested, scheduled_demo, etc
-    next_follow_up_date DATE,
-    
+    resultado VARCHAR(100),
+        -- Valores: interesado, no_interesado, demo_programada, etc.
+    fecha_proximo_seguimiento DATE,
+
     -- Metadatos
-    interaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    duration_minutes INT,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_interaccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    duracion_minutos INT,
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_customer_interactions_customer_id ON customer_interactions(customer_id);
-CREATE INDEX idx_customer_interactions_interaction_date ON customer_interactions(interaction_date);
-CREATE INDEX idx_customer_interactions_salesperson_id ON customer_interactions(salesperson_id);
+CREATE INDEX idx_interacciones_clientes_cliente_id ON interacciones_clientes(cliente_id);
+CREATE INDEX idx_interacciones_clientes_fecha ON interacciones_clientes(fecha_interaccion);
+CREATE INDEX idx_interacciones_clientes_vendedor_id ON interacciones_clientes(vendedor_id);
 
 -- ============================================================================
--- CAMPAÑAS / MARKETING
+-- CAMPAÑAS DE MARKETING
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS campaigns (
+CREATE TABLE IF NOT EXISTS campanas (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+
     -- Tipo y canal
-    campaign_type VARCHAR(100),
-        -- Valores: email, webinar, trade_show, promotion, seasonal
-    channel VARCHAR(50),
-        -- Valores: email, social, direct_mail, events, referral, organic
-    
+    tipo_campana VARCHAR(100),
+        -- Valores: email, webinar, feria, promocion, estacional
+    canal VARCHAR(50),
+        -- Valores: email, redes_sociales, correo_directo, eventos, referido, organico
+
     -- Período
-    start_date DATE NOT NULL,
-    end_date DATE,
-    
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+
     -- Presupuesto
-    budget NUMERIC(15,2),
-    actual_spend NUMERIC(15,2) DEFAULT 0,
-    
+    presupuesto NUMERIC(15,2),
+    gasto_real NUMERIC(15,2) DEFAULT 0,
+
     -- Performance
-    impressions INT DEFAULT 0,
-    clicks INT DEFAULT 0,
-    conversions INT DEFAULT 0,
-    revenue_generated NUMERIC(15,2) DEFAULT 0,
-    
-    status VARCHAR(50) DEFAULT 'active',
-        -- Valores: planned, active, completed, cancelled
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    impresiones INT DEFAULT 0,
+    clics INT DEFAULT 0,
+    conversiones INT DEFAULT 0,
+    ingresos_generados NUMERIC(15,2) DEFAULT 0,
+
+    estado VARCHAR(50) DEFAULT 'activa',
+        -- Valores: planificada, activa, completada, cancelada
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_campaigns_start_date ON campaigns(start_date);
-CREATE INDEX idx_campaigns_status ON campaigns(status);
+CREATE INDEX idx_campanas_fecha_inicio ON campanas(fecha_inicio);
+CREATE INDEX idx_campanas_estado ON campanas(estado);
 
 -- ============================================================================
 -- RELACIÓN: CLIENTES - CAMPAÑAS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS campaign_customers (
+CREATE TABLE IF NOT EXISTS campanas_clientes (
     id BIGSERIAL PRIMARY KEY,
-    campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-    customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    
+    campana_id BIGINT NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+    cliente_id BIGINT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+
     -- Engagement
-    contacted_date TIMESTAMP,
-    opened BOOLEAN DEFAULT FALSE,
-    clicked BOOLEAN DEFAULT FALSE,
-    converted BOOLEAN DEFAULT FALSE,
-    conversion_date TIMESTAMP,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_campaign_customer UNIQUE(campaign_id, customer_id)
+    fecha_contacto TIMESTAMP,
+    abierto BOOLEAN DEFAULT FALSE,
+    hizo_clic BOOLEAN DEFAULT FALSE,
+    convirtio BOOLEAN DEFAULT FALSE,
+    fecha_conversion TIMESTAMP,
+
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_campana_cliente UNIQUE(campana_id, cliente_id)
 );
 
-CREATE INDEX idx_campaign_customers_campaign_id ON campaign_customers(campaign_id);
-CREATE INDEX idx_campaign_customers_customer_id ON campaign_customers(customer_id);
+CREATE INDEX idx_campanas_clientes_campana_id ON campanas_clientes(campana_id);
+CREATE INDEX idx_campanas_clientes_cliente_id ON campanas_clientes(cliente_id);
 
 -- ============================================================================
--- TABLAS DE AUDITORÍA/CONTROL
+-- TABLA DE AUDITORÍA / CONTROL DE CARGAS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS data_loads (
+CREATE TABLE IF NOT EXISTS cargas_datos (
     id BIGSERIAL PRIMARY KEY,
-    load_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    load_type VARCHAR(100),
-        -- Valores: initial, incremental, refresh, test
-    records_affected INT,
-    status VARCHAR(50),
-    notes TEXT
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    tipo_carga VARCHAR(100),
+        -- Valores: inicial, incremental, refresco, prueba
+    registros_afectados INT,
+    estado VARCHAR(50),
+    notas TEXT
 );
 
 -- ============================================================================
 -- COMENTARIOS DE TABLAS Y COLUMNAS
 -- ============================================================================
-COMMENT ON TABLE customers IS 'Tabla de dimensión de clientes con información demográfica y de segmentación';
-COMMENT ON TABLE products IS 'Tabla de dimensión de productos con categorización y precios';
-COMMENT ON TABLE orders IS 'Tabla de hechos de órdenes de ventas';
-COMMENT ON TABLE order_items IS 'Detalles de líneas en órdenes';
-COMMENT ON TABLE payments IS 'Transacciones de pagos y cobros';
-COMMENT ON TABLE returns IS 'Registro de devoluciones y reembolsos';
-COMMENT ON COLUMN orders.total_amount IS 'Total final: subtotal - descuento + impuesto + envío';
-COMMENT ON COLUMN order_items.line_total IS 'Generado automáticamente: cantidad * precio unitario * (1 - descuento%)';
+COMMENT ON TABLE clientes IS 'Tabla de dimensión de clientes con información demográfica y de segmentación';
+COMMENT ON TABLE productos IS 'Tabla de dimensión de productos con categorización y precios';
+COMMENT ON TABLE ordenes IS 'Tabla de hechos de órdenes de ventas';
+COMMENT ON TABLE items_orden IS 'Detalles de líneas en órdenes';
+COMMENT ON TABLE pagos IS 'Transacciones de pagos y cobros';
+COMMENT ON TABLE devoluciones IS 'Registro de devoluciones y reembolsos';
+COMMENT ON COLUMN ordenes.monto_total IS 'Total final: subtotal - descuento + impuesto + envío';
+COMMENT ON COLUMN items_orden.total_linea IS 'Generado automáticamente: cantidad * precio_unitario * (1 - descuento%)';
 
 -- ============================================================================
 -- TRIGGERS PARA MANTENER INTEGRIDAD DE DATOS
 -- ============================================================================
 
--- Actualizar total de órdenes cuando se agregan items
-CREATE OR REPLACE FUNCTION update_order_total()
+-- Actualizar total de órdenes cuando se agregan ítems
+CREATE OR REPLACE FUNCTION actualizar_total_orden()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE orders
-    SET total_amount = COALESCE(
-        (SELECT SUM(line_total) FROM order_items WHERE order_id = NEW.order_id),
+    UPDATE ordenes
+    SET monto_total = COALESCE(
+        (SELECT SUM(total_linea) FROM items_orden WHERE orden_id = NEW.orden_id),
         0
-    ) + COALESCE(tax_amount, 0) + COALESCE(shipping_cost, 0) - COALESCE(discount_amount, 0),
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = NEW.order_id;
-    
+    ) + COALESCE(monto_impuesto, 0) + COALESCE(costo_envio, 0) - COALESCE(monto_descuento, 0),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.orden_id;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_update_order_total_after_insert
-AFTER INSERT ON order_items
+CREATE TRIGGER trg_actualizar_total_orden_insert
+AFTER INSERT ON items_orden
 FOR EACH ROW
-EXECUTE FUNCTION update_order_total();
+EXECUTE FUNCTION actualizar_total_orden();
 
-CREATE TRIGGER trg_update_order_total_after_update
-AFTER UPDATE ON order_items
+CREATE TRIGGER trg_actualizar_total_orden_update
+AFTER UPDATE ON items_orden
 FOR EACH ROW
-EXECUTE FUNCTION update_order_total();
+EXECUTE FUNCTION actualizar_total_orden();
 
-CREATE TRIGGER trg_update_order_total_after_delete
-AFTER DELETE ON order_items
+CREATE TRIGGER trg_actualizar_total_orden_delete
+AFTER DELETE ON items_orden
 FOR EACH ROW
-EXECUTE FUNCTION update_order_total();
+EXECUTE FUNCTION actualizar_total_orden();
 
--- Actualizar lifetime value del cliente
-CREATE OR REPLACE FUNCTION update_customer_lifetime_value()
+-- Actualizar valor de vida del cliente
+CREATE OR REPLACE FUNCTION actualizar_valor_vida_cliente()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE customers
-    SET total_lifetime_value = COALESCE(
-        (SELECT SUM(total_amount) FROM orders WHERE customer_id = NEW.customer_id AND status != 'cancelled'),
+    UPDATE clientes
+    SET valor_vida_total = COALESCE(
+        (SELECT SUM(monto_total) FROM ordenes WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
         0
     ),
-        last_purchase_date = COALESCE(
-            (SELECT MAX(order_date) FROM orders WHERE customer_id = NEW.customer_id AND status != 'cancelled'),
-            last_purchase_date
+        fecha_ultima_compra = COALESCE(
+            (SELECT MAX(fecha_orden) FROM ordenes WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
+            fecha_ultima_compra
         ),
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = NEW.customer_id;
-    
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.cliente_id;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_update_customer_ltv
-AFTER INSERT OR UPDATE ON orders
+CREATE TRIGGER trg_actualizar_valor_vida_cliente
+AFTER INSERT OR UPDATE ON ordenes
 FOR EACH ROW
-EXECUTE FUNCTION update_customer_lifetime_value();
+EXECUTE FUNCTION actualizar_valor_vida_cliente();
 
--- Registrar en data_loads
-CREATE OR REPLACE FUNCTION log_data_load(
-    p_load_type VARCHAR,
-    p_records_affected INT,
-    p_status VARCHAR DEFAULT 'completed',
-    p_notes TEXT DEFAULT NULL
+-- Registrar en cargas_datos
+CREATE OR REPLACE FUNCTION registrar_carga_datos(
+    p_tipo_carga VARCHAR,
+    p_registros_afectados INT,
+    p_estado VARCHAR DEFAULT 'completado',
+    p_notas TEXT DEFAULT NULL
 )
 RETURNS BIGINT AS $$
 DECLARE
-    v_load_id BIGINT;
+    v_carga_id BIGINT;
 BEGIN
-    INSERT INTO data_loads (load_type, records_affected, status, notes)
-    VALUES (p_load_type, p_records_affected, p_status, p_notes)
-    RETURNING id INTO v_load_id;
-    
-    RETURN v_load_id;
+    INSERT INTO cargas_datos (tipo_carga, registros_afectados, estado, notas)
+    VALUES (p_tipo_carga, p_registros_afectados, p_estado, p_notas)
+    RETURNING id INTO v_carga_id;
+
+    RETURN v_carga_id;
 END;
 $$ LANGUAGE plpgsql;
 
