@@ -147,8 +147,8 @@ GO
 -- ============================================================================
 -- HECHO: ÓRDENES DE VENTAS
 -- ============================================================================
-IF OBJECT_ID('dbo.ordenes', 'U') IS NULL
-CREATE TABLE dbo.ordenes (
+IF OBJECT_ID('dbo.orden_encabezado', 'U') IS NULL
+CREATE TABLE dbo.orden_encabezado (
     id                       BIGINT IDENTITY(1,1) PRIMARY KEY,
     uuid                     UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
 
@@ -206,8 +206,8 @@ GO
 -- ============================================================================
 -- DETALLE: ÍTEMS DE ÓRDENES
 -- ============================================================================
-IF OBJECT_ID('dbo.items_orden', 'U') IS NULL
-CREATE TABLE dbo.items_orden (
+IF OBJECT_ID('dbo.orden_detalles', 'U') IS NULL
+CREATE TABLE dbo.orden_detalles (
     id                   BIGINT IDENTITY(1,1) PRIMARY KEY,
     orden_id             BIGINT NOT NULL,
     producto_id          BIGINT NOT NULL,
@@ -302,124 +302,6 @@ GO
 CREATE INDEX idx_devoluciones_orden_id        ON dbo.devoluciones (orden_id);
 CREATE INDEX idx_devoluciones_fecha_devolucion ON dbo.devoluciones (fecha_devolucion);
 CREATE INDEX idx_devoluciones_estado           ON dbo.devoluciones (estado);
-GO
-
--- ============================================================================
--- INTERACCIONES CON CLIENTES (CRM)
--- ============================================================================
-IF OBJECT_ID('dbo.interacciones_clientes', 'U') IS NULL
-CREATE TABLE dbo.interacciones_clientes (
-    id                          BIGINT IDENTITY(1,1) PRIMARY KEY,
-    uuid                        UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
-    cliente_id                  BIGINT NOT NULL,
-    vendedor_id                 BIGINT NULL,
-
-    -- Valores: llamada, email, reunion, demo, soporte, seguimiento
-    tipo_interaccion            NVARCHAR(50) NOT NULL,
-    asunto                      NVARCHAR(255) NULL,
-    notas                       NVARCHAR(MAX) NULL,
-
-    -- Valores: interesado, no_interesado, demo_programada, etc.
-    resultado                   NVARCHAR(100) NULL,
-    fecha_proximo_seguimiento   DATE NULL,
-
-    fecha_interaccion           DATETIME2 NOT NULL DEFAULT GETDATE(),
-    duracion_minutos            INT NULL,
-
-    creado_en                   DATETIME2 NOT NULL DEFAULT GETDATE(),
-    actualizado_en              DATETIME2 NOT NULL DEFAULT GETDATE(),
-
-    CONSTRAINT uq_interacciones_uuid       UNIQUE (uuid),
-    CONSTRAINT fk_interacciones_cliente    FOREIGN KEY (cliente_id)  REFERENCES dbo.clientes  (id) ON DELETE CASCADE,
-    CONSTRAINT fk_interacciones_vendedor   FOREIGN KEY (vendedor_id) REFERENCES dbo.vendedores (id)
-);
-GO
-
-CREATE INDEX idx_interacciones_cliente_id ON dbo.interacciones_clientes (cliente_id);
-CREATE INDEX idx_interacciones_fecha      ON dbo.interacciones_clientes (fecha_interaccion);
-CREATE INDEX idx_interacciones_vendedor   ON dbo.interacciones_clientes (vendedor_id);
-GO
-
--- ============================================================================
--- CAMPAÑAS DE MARKETING
--- ============================================================================
-IF OBJECT_ID('dbo.campanas', 'U') IS NULL
-CREATE TABLE dbo.campanas (
-    id                  BIGINT IDENTITY(1,1) PRIMARY KEY,
-    uuid                UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
-    nombre              NVARCHAR(255) NOT NULL,
-    descripcion         NVARCHAR(MAX) NULL,
-
-    -- Valores: email, webinar, feria, promocion, estacional
-    tipo_campana        NVARCHAR(100) NULL,
-    -- Valores: email, redes_sociales, correo_directo, eventos, referido, organico
-    canal               NVARCHAR(50) NULL,
-
-    fecha_inicio        DATE NOT NULL,
-    fecha_fin           DATE NULL,
-
-    presupuesto         DECIMAL(15,2) NULL,
-    gasto_real          DECIMAL(15,2) NOT NULL DEFAULT 0,
-
-    impresiones         INT NOT NULL DEFAULT 0,
-    clics               INT NOT NULL DEFAULT 0,
-    conversiones        INT NOT NULL DEFAULT 0,
-    ingresos_generados  DECIMAL(15,2) NOT NULL DEFAULT 0,
-
-    -- Valores: planificada, activa, completada, cancelada
-    estado              NVARCHAR(50) NOT NULL DEFAULT 'activa',
-
-    creado_en           DATETIME2 NOT NULL DEFAULT GETDATE(),
-    actualizado_en      DATETIME2 NOT NULL DEFAULT GETDATE(),
-
-    CONSTRAINT uq_campanas_uuid UNIQUE (uuid)
-);
-GO
-
-CREATE INDEX idx_campanas_fecha_inicio ON dbo.campanas (fecha_inicio);
-CREATE INDEX idx_campanas_estado       ON dbo.campanas (estado);
-GO
-
--- ============================================================================
--- RELACIÓN: CLIENTES - CAMPAÑAS
--- ============================================================================
-IF OBJECT_ID('dbo.campanas_clientes', 'U') IS NULL
-CREATE TABLE dbo.campanas_clientes (
-    id               BIGINT IDENTITY(1,1) PRIMARY KEY,
-    campana_id       BIGINT NOT NULL,
-    cliente_id       BIGINT NOT NULL,
-
-    fecha_contacto   DATETIME2 NULL,
-    abierto          BIT NOT NULL DEFAULT 0,
-    hizo_clic        BIT NOT NULL DEFAULT 0,
-    convirtio        BIT NOT NULL DEFAULT 0,
-    fecha_conversion DATETIME2 NULL,
-
-    creado_en        DATETIME2 NOT NULL DEFAULT GETDATE(),
-
-    CONSTRAINT uq_campana_cliente    UNIQUE (campana_id, cliente_id),
-    CONSTRAINT fk_cc_campana         FOREIGN KEY (campana_id) REFERENCES dbo.campanas (id) ON DELETE CASCADE,
-    CONSTRAINT fk_cc_cliente         FOREIGN KEY (cliente_id) REFERENCES dbo.clientes  (id) ON DELETE CASCADE
-);
-GO
-
-CREATE INDEX idx_campanas_clientes_campana_id ON dbo.campanas_clientes (campana_id);
-CREATE INDEX idx_campanas_clientes_cliente_id ON dbo.campanas_clientes (cliente_id);
-GO
-
--- ============================================================================
--- TABLA DE AUDITORÍA / CONTROL DE CARGAS
--- ============================================================================
-IF OBJECT_ID('dbo.cargas_datos', 'U') IS NULL
-CREATE TABLE dbo.cargas_datos (
-    id                   BIGINT IDENTITY(1,1) PRIMARY KEY,
-    fecha_carga          DATETIME2 NOT NULL DEFAULT GETDATE(),
-    -- Valores: inicial, incremental, refresco, prueba
-    tipo_carga           NVARCHAR(100) NULL,
-    registros_afectados  INT NULL,
-    estado               NVARCHAR(50) NULL,
-    notas                NVARCHAR(MAX) NULL
-);
 GO
 
 -- ============================================================================

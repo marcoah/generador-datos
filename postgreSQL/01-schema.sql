@@ -131,7 +131,7 @@ CREATE INDEX idx_vendedores_activo ON vendedores(activo);
 -- ============================================================================
 -- HECHO: ÓRDENES DE VENTAS
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS ordenes (
+CREATE TABLE IF NOT EXISTS orden_encabezado (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
 
@@ -183,7 +183,7 @@ CREATE INDEX idx_ordenes_creado_en ON ordenes(creado_en);
 -- ============================================================================
 -- DETALLE: ÍTEMS DE ÓRDENES
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS items_orden (
+CREATE TABLE IF NOT EXISTS orden_detalles (
     id BIGSERIAL PRIMARY KEY,
     orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
     producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
