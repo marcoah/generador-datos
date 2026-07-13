@@ -30,3 +30,9 @@ Para ejecutar
 Marco Hernandez
 
 ## Licencia
+
+Este proyecto se distribuye bajo la licencia MIT.
+
+Puedes usarlo, copiarlo, modificarlo y distribuirlo libremente, siempre que conserves este aviso de derechos de autor y la licencia.
+
+Más detalles en el archivo LICENSE si está disponible.
