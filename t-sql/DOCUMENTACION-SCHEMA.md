@@ -34,8 +34,8 @@ DIMENSIONES (Contexto)
 └── dbo.vendedores
 
 HECHOS (Transacciones)
-├── dbo.ordenes
-├── dbo.items_orden
+├── dbo.orden_encabezado
+├── dbo.orden_detalles
 ├── dbo.pagos
 └── dbo.devoluciones
 
@@ -155,7 +155,7 @@ Esto está implementado en `dbo.fn_pronostico_ventas`.
 ```sql
 -- PostgreSQL
 COMMENT ON TABLE clientes IS 'Descripción';
-COMMENT ON COLUMN ordenes.monto_total IS 'Descripción';
+COMMENT ON COLUMN orden_encabezado.monto_total IS 'Descripción';
 
 -- SQL Server
 EXEC sys.sp_addextendedproperty
@@ -249,17 +249,17 @@ EXEC sys.sp_addextendedproperty
 
 **Triggers:**
 
-- `trg_actualizar_total_orden`: Recalcula monto_total al modificar items_orden
+- `trg_actualizar_total_orden`: Recalcula monto_total al modificar orden_detalles
 - `trg_actualizar_valor_vida_cliente`: Actualiza valor_vida_total del cliente
 
 ---
 
-### 🔗 ITEMS_ORDEN
+### 🔗 ORDEN_DETALLES
 
 | Columna              | Tipo            | Descripción                                                 |
 | -------------------- | --------------- | ----------------------------------------------------------- |
 | id                   | BIGINT IDENTITY | PK                                                          |
-| orden_id             | BIGINT          | FK → ordenes (ON DELETE CASCADE)                            |
+| orden_id             | BIGINT          | FK → orden_encabezado (ON DELETE CASCADE)                   |
 | producto_id          | BIGINT          | FK → productos                                              |
 | cantidad             | INT             | Cantidad pedida                                             |
 | precio_unitario      | DECIMAL(10,2)   | Precio al momento de la venta                               |
@@ -274,7 +274,7 @@ EXEC sys.sp_addextendedproperty
 
 | Columna           | Tipo          | Descripción                      |
 | ----------------- | ------------- | -------------------------------- |
-| orden_id          | BIGINT        | FK → ordenes                     |
+| orden_id          | BIGINT        | FK → orden_encabezado            |
 | monto             | DECIMAL(15,2) | Monto pagado                     |
 | fecha_pago        | DATETIME2     | Fecha del pago                   |
 | metodo_pago       | NVARCHAR(50)  | Método utilizado                 |
@@ -289,7 +289,7 @@ EXEC sys.sp_addextendedproperty
 
 | Columna          | Tipo          | Descripción                                 |
 | ---------------- | ------------- | ------------------------------------------- |
-| orden_id         | BIGINT        | FK → ordenes                                |
+| orden_id         | BIGINT        | FK → orden_encabezado                       |
 | fecha_devolucion | DATETIME2     | Fecha de solicitud                          |
 | motivo           | NVARCHAR(255) | Motivo de la devolución                     |
 | monto_reembolso  | DECIMAL(15,2) | Monto a reembolsar                          |
@@ -300,22 +300,22 @@ EXEC sys.sp_addextendedproperty
 ## Relaciones y Claves Foráneas
 
 ```
-clientes ◄──────┬────► ordenes ──► items_orden ◄─── productos
+clientes ◄──────┬────► orden_encabezado ──► orden_detalles ◄─── productos
                 │        ▲
                 ├──────────► pagos
                 ├──────────► devoluciones
                 ├──────────► interacciones_clientes ◄─── vendedores
                 └──────────► campanas_clientes ◄──── campanas
 
-vendedores ────────────► ordenes
+vendedores ────────────► orden_encabezado
      ▲
      └─ gerente_id (autorreferencia)
 ```
 
 **Integridad referencial:**
 
-- `ON DELETE CASCADE`: items_orden, interacciones_clientes, campanas_clientes
-- FK estándar (restrict por defecto): ordenes → clientes, pagos → ordenes, devoluciones → ordenes
+- `ON DELETE CASCADE`: orden_detalles, interacciones_clientes, campanas_clientes
+- FK estándar (restrict por defecto): orden_encabezado → clientes, pagos → orden_encabezado, devoluciones → orden_encabezado
 
 ---
 
@@ -323,9 +323,9 @@ vendedores ────────────► ordenes
 
 ### Valores por Campo
 
-**ordenes.estado:** `pendiente` · `confirmado` · `procesando` · `enviado` · `entregado` · `cancelado` · `devuelto`
+**orden_encabezado.estado:** `pendiente` · `confirmado` · `procesando` · `enviado` · `entregado` · `cancelado` · `devuelto`
 
-**ordenes.estado_pago:** `pendiente` · `parcial` · `pagado` · `vencido` · `reembolsado`
+**orden_encabezado.estado_pago:** `pendiente` · `parcial` · `pagado` · `vencido` · `reembolsado`
 
 **ordenes.metodo_pago:** `tarjeta_credito` · `transferencia_bancaria` · `efectivo` · `cheque`
 
@@ -459,10 +459,10 @@ SELECT * FROM dbo.fn_pronostico_ventas(3, 12) ORDER BY mes_pronostico;
 EXEC dbo.sp_generar_todos_los_datos @clientes=500, @productos=200, @vendedores=50, @ordenes=5000;
 
 -- Opción B: Limpiar tablas en orden (respetar FK)
-DELETE FROM dbo.items_orden;
+DELETE FROM dbo.orden_detalles;
 DELETE FROM dbo.pagos;
 DELETE FROM dbo.devoluciones;
-DELETE FROM dbo.ordenes;
+DELETE FROM dbo.orden_encabezado;
 DELETE FROM dbo.clientes;
 
 -- Opción C: Soft delete
@@ -485,10 +485,10 @@ CREATE INDEX idx_productos_categoria        ON dbo.productos (categoria);
 CREATE INDEX idx_vendedores_equipo          ON dbo.vendedores (equipo);
 
 -- Hechos
-CREATE INDEX idx_ordenes_cliente_id         ON dbo.ordenes (cliente_id);
-CREATE INDEX idx_ordenes_fecha_orden        ON dbo.ordenes (fecha_orden);
-CREATE INDEX idx_ordenes_estado             ON dbo.ordenes (estado);
-CREATE INDEX idx_items_orden_orden_id       ON dbo.items_orden (orden_id);
+CREATE INDEX idx_ordenes_cliente_id         ON dbo.orden_encabezado (cliente_id);
+CREATE INDEX idx_ordenes_fecha_orden        ON dbo.orden_encabezado (fecha_orden);
+CREATE INDEX idx_ordenes_estado             ON dbo.orden_encabezado (estado);
+CREATE INDEX idx_items_orden_orden_id       ON dbo.orden_detalles (orden_id);
 ```
 
 ### Índices Adicionales Recomendados
@@ -496,20 +496,20 @@ CREATE INDEX idx_items_orden_orden_id       ON dbo.items_orden (orden_id);
 ```sql
 -- Filtros compuestos frecuentes
 CREATE INDEX idx_ordenes_fecha_estado
-    ON dbo.ordenes (fecha_orden, estado)
+    ON dbo.orden_encabezado (fecha_orden, estado)
     INCLUDE (monto_total, cliente_id);
 
 CREATE INDEX idx_ordenes_estado_pago_fecha
-    ON dbo.ordenes (estado_pago, fecha_orden)
+    ON dbo.orden_encabezado (estado_pago, fecha_orden)
     INCLUDE (monto_total);
 
 -- Mejoran las vistas
 CREATE INDEX idx_ordenes_cliente_fecha
-    ON dbo.ordenes (cliente_id, fecha_orden)
+    ON dbo.orden_encabezado (cliente_id, fecha_orden)
     INCLUDE (monto_total, estado);
 
 CREATE INDEX idx_items_orden_producto
-    ON dbo.items_orden (producto_id)
+    ON dbo.orden_detalles (producto_id)
     INCLUDE (orden_id, cantidad, total_linea, cantidad_devuelta);
 ```
 
@@ -519,12 +519,12 @@ CREATE INDEX idx_items_orden_producto
 -- Actualizar estadísticas después de cargas masivas
 UPDATE STATISTICS dbo.clientes;
 UPDATE STATISTICS dbo.productos;
-UPDATE STATISTICS dbo.ordenes;
-UPDATE STATISTICS dbo.items_orden;
+UPDATE STATISTICS dbo.orden_encabezado;
+UPDATE STATISTICS dbo.orden_detalles;
 
 -- Rebuild de índices fragmentados
-ALTER INDEX ALL ON dbo.ordenes    REBUILD;
-ALTER INDEX ALL ON dbo.items_orden REBUILD;
+ALTER INDEX ALL ON dbo.orden_encabezado    REBUILD;
+ALTER INDEX ALL ON dbo.orden_detalles REBUILD;
 
 -- Ver tamaño de tablas
 SELECT

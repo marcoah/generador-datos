@@ -104,7 +104,7 @@ BEGIN
 
     WHILE v_i < p_cantidad LOOP
         v_nombre := generar_nombre_aleatorio(CASE WHEN RANDOM() > 0.5 THEN 'M' ELSE 'F' END);
-        v_email := generar_email_aleatorio(v_nombre);
+        v_email := REPLACE(generar_email_aleatorio(v_nombre), '@', '.' || v_i || '@');
 
         v_segmento := v_segmentos[((RANDOM() * (ARRAY_LENGTH(v_segmentos, 1) - 1))::INT) + 1];
         v_industria := v_industrias[((RANDOM() * (ARRAY_LENGTH(v_industrias, 1) - 1))::INT) + 1];
@@ -272,7 +272,7 @@ BEGIN
             fecha_contratacion
         ) VALUES (
             v_nombre,
-            generar_email_aleatorio(v_nombre),
+            REPLACE(generar_email_aleatorio(v_nombre), '@', '.' || v_i || '@'),
             generar_telefono_aleatorio(),
             v_equipo,
             v_territorio,
@@ -330,8 +330,8 @@ DECLARE
     v_estados_pago VARCHAR[] := ARRAY['pendiente', 'parcial', 'pagado', 'vencido', 'reembolsado'];
 BEGIN
     IF p_limpiar THEN
-        DELETE FROM items_orden;
-        DELETE FROM ordenes;
+        DELETE FROM orden_detalles;
+        DELETE FROM orden_encabezado;
         RAISE NOTICE 'Tablas de órdenes limpiadas';
     END IF;
 
@@ -378,7 +378,7 @@ BEGIN
         END;
 
         -- Insertar orden
-        INSERT INTO ordenes (
+        INSERT INTO orden_encabezado (
             cliente_id,
             vendedor_id,
             fecha_orden,
@@ -397,7 +397,7 @@ BEGIN
             v_fecha_orden::DATE + INTERVAL '5 days',
             v_estado,
             v_estado_pago,
-            ARRAY['tarjeta_credito', 'transferencia_bancaria', 'efectivo', 'cheque'][((RANDOM() * 3)::INT) + 1],
+            (ARRAY['tarjeta_credito', 'transferencia_bancaria', 'efectivo', 'cheque'])[((RANDOM() * 3)::INT) + 1],
             (50 + RANDOM() * 450)::NUMERIC(15, 2),
             (10 + RANDOM() * 90)::NUMERIC(15, 2),
             CASE WHEN RANDOM() > 0.7 THEN (5 + RANDOM() * 20)::NUMERIC(5, 2) ELSE 0 END,
@@ -417,7 +417,7 @@ BEGIN
             v_cantidad := ((RANDOM() * 10)::INT) + 1;
             v_pct_descuento := CASE WHEN RANDOM() > 0.7 THEN RANDOM() * 20 ELSE 0 END;
 
-            INSERT INTO items_orden (
+            INSERT INTO orden_detalles (
                 orden_id,
                 producto_id,
                 cantidad,
@@ -475,11 +475,11 @@ BEGIN
 
     -- Generar pagos para órdenes pagadas o parcialmente pagadas
     FOR v_orden_id, v_monto_total IN
-        SELECT id, monto_total FROM ordenes
+        SELECT id, monto_total FROM orden_encabezado
         WHERE estado_pago IN ('pagado', 'parcial', 'vencido')
         AND monto_total > 0
     LOOP
-        v_metodo_pago := ARRAY['tarjeta_credito', 'transferencia_bancaria', 'efectivo', 'cheque'][((RANDOM() * 3)::INT) + 1];
+        v_metodo_pago := (ARRAY['tarjeta_credito', 'transferencia_bancaria', 'efectivo', 'cheque'])[((RANDOM() * 3)::INT) + 1];
 
         IF RANDOM() > 0.3 THEN
             -- Pago completo

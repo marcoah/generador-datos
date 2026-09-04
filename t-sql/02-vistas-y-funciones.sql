@@ -3,6 +3,11 @@
 -- SQL Server 2016+
 -- ============================================================================
 
+-- Requerido porque dbo.orden_detalles tiene una columna calculada PERSISTED
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 -- ============================================================================
 -- VISTAS: ANÁLISIS DE VENTAS
 -- ============================================================================
@@ -30,7 +35,7 @@ SELECT
     COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END)                AS ordenes_pagadas,
     COUNT(CASE WHEN o.estado_pago = 'pendiente' THEN 1 END)             AS ordenes_pago_pendiente
 
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE o.fecha_orden >= DATEADD(YEAR, -2, GETDATE())
 GROUP BY CAST(o.fecha_orden AS DATE);
 GO
@@ -57,8 +62,8 @@ SELECT
     COUNT(DISTINCT o.cliente_id)                                                AS clientes_unicos,
     SUM(io.cantidad_devuelta)                                                   AS unidades_devueltas
 
-FROM dbo.items_orden io
-JOIN dbo.ordenes  o ON io.orden_id   = o.id
+FROM dbo.orden_detalles io
+JOIN dbo.orden_encabezado  o ON io.orden_id   = o.id
 JOIN dbo.productos p ON io.producto_id = p.id
 WHERE o.estado <> 'cancelado'
 GROUP BY p.categoria, p.subcategoria;
@@ -108,7 +113,7 @@ SELECT
     DATEDIFF(DAY, MAX(o.fecha_orden), GETDATE())                                    AS dias_desde_ultima_venta
 
 FROM dbo.vendedores v
-LEFT JOIN dbo.ordenes o ON v.id = o.vendedor_id AND o.estado <> 'cancelado'
+LEFT JOIN dbo.orden_encabezado o ON v.id = o.vendedor_id AND o.estado <> 'cancelado'
 WHERE v.activo = 1
 GROUP BY v.id, v.uuid, v.nombre, v.equipo, v.territorio, v.cuota_mensual, v.tasa_comision;
 GO
@@ -145,7 +150,7 @@ SELECT
     MAX(ic.fecha_interaccion)                                                   AS fecha_ultima_interaccion
 
 FROM dbo.clientes c
-LEFT JOIN dbo.ordenes o                   ON c.id = o.cliente_id
+LEFT JOIN dbo.orden_encabezado o                   ON c.id = o.cliente_id
 LEFT JOIN dbo.interacciones_clientes ic   ON c.id = ic.cliente_id
 WHERE c.activo = 1
 GROUP BY c.id, c.uuid, c.nombre, c.segmento, c.industria, c.tamaño_empresa, c.pais;
@@ -169,8 +174,8 @@ SELECT
     d.motivo
 
 FROM dbo.devoluciones d
-JOIN dbo.ordenes     o  ON d.orden_id    = o.id
-LEFT JOIN dbo.items_orden io ON o.id     = io.orden_id
+JOIN dbo.orden_encabezado     o  ON d.orden_id    = o.id
+LEFT JOIN dbo.orden_detalles io ON o.id     = io.orden_id
 LEFT JOIN dbo.productos   p  ON io.producto_id = p.id
 WHERE d.fecha_devolucion >= DATEADD(YEAR, -1, GETDATE())
 GROUP BY CAST(d.fecha_devolucion AS DATE), p.categoria, p.subcategoria, d.motivo;
@@ -195,7 +200,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN DATEADD(DAY, 60, o.fecha_orden) < p.fecha_pago THEN o.id END) AS pagos_atrasados_60d
 
 FROM dbo.pagos p
-JOIN dbo.ordenes o ON p.orden_id = o.id
+JOIN dbo.orden_encabezado o ON p.orden_id = o.id
 WHERE p.fecha_pago >= DATEADD(YEAR, -1, GETDATE())
 GROUP BY CAST(p.fecha_pago AS DATE), p.metodo_pago;
 GO
@@ -299,7 +304,7 @@ RETURNS TABLE AS RETURN
             c.segmento,
             DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1) AS mes,
             SUM(o.monto_total)                                           AS ventas_mensuales
-        FROM dbo.ordenes o
+        FROM dbo.orden_encabezado o
         JOIN dbo.clientes c ON o.cliente_id = c.id
         WHERE o.fecha_orden >= DATEADD(MONTH, -@meses_periodo, GETDATE())
           AND o.estado <> 'cancelado'
@@ -319,14 +324,14 @@ RETURNS TABLE AS RETURN
     WITH clientes_periodo AS (
         SELECT DISTINCT c.id, c.segmento
         FROM dbo.clientes c
-        JOIN dbo.ordenes o ON c.id = o.cliente_id
+        JOIN dbo.orden_encabezado o ON c.id = o.cliente_id
         WHERE o.fecha_orden >= DATEADD(DAY, -@dias_periodo, GETDATE())
           AND o.estado <> 'cancelado'
     ),
     clientes_activos_recientes AS (
         SELECT DISTINCT c.id
         FROM dbo.clientes c
-        JOIN dbo.ordenes o ON c.id = o.cliente_id
+        JOIN dbo.orden_encabezado o ON c.id = o.cliente_id
         WHERE o.fecha_orden >= DATEADD(DAY, -30, GETDATE())
           AND o.estado <> 'cancelado'
     ),
@@ -363,7 +368,7 @@ RETURNS TABLE AS RETURN
             ROW_NUMBER() OVER (
                 ORDER BY DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)
             )                                                            AS seq_mes
-        FROM dbo.ordenes o
+        FROM dbo.orden_encabezado o
         WHERE o.fecha_orden >= DATEADD(MONTH, -@meses_historico, GETDATE())
           AND o.estado <> 'cancelado'
         GROUP BY DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)
@@ -425,7 +430,7 @@ RETURNS TABLE AS RETURN
             DATEFROMPARTS(YEAR(MIN(o.fecha_orden)), MONTH(MIN(o.fecha_orden)), 1)  AS mes_cohorte,
             DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)            AS mes_orden
         FROM dbo.clientes c
-        JOIN dbo.ordenes o ON c.id = o.cliente_id
+        JOIN dbo.orden_encabezado o ON c.id = o.cliente_id
         WHERE o.estado <> 'cancelado'
         GROUP BY c.id, DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)
     ),
@@ -440,7 +445,7 @@ RETURNS TABLE AS RETURN
             END                                             AS metrica,
             COUNT(DISTINCT cc.id)                           AS clientes
         FROM cohortes_clientes cc
-        JOIN dbo.ordenes o
+        JOIN dbo.orden_encabezado o
             ON cc.id = o.cliente_id
             AND DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1) = cc.mes_orden
         WHERE o.estado <> 'cancelado'
@@ -485,8 +490,8 @@ BEGIN
         SUM(CASE WHEN o.estado = 'entregado' THEN o.monto_total ELSE 0 END) AS ingresos_entregados,
         SUM(CASE WHEN o.estado = 'cancelado' THEN o.monto_total ELSE 0 END) AS ingresos_cancelados,
         SUM(o.monto_total) - SUM(COALESCE(CAST(io.cantidad AS DECIMAL(15,2)) * p.precio_costo, 0)) AS ganancia_bruta
-    FROM dbo.ordenes o
-    LEFT JOIN dbo.items_orden io ON o.id = io.orden_id
+    FROM dbo.orden_encabezado o
+    LEFT JOIN dbo.orden_detalles io ON o.id = io.orden_id
     LEFT JOIN dbo.productos   p  ON io.producto_id = p.id
     WHERE o.estado <> 'cancelado'
     GROUP BY DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1),
@@ -513,8 +518,8 @@ BEGIN
         COALESCE(SUM(io.total_linea), 0)                                            AS ingresos_totales,
         ROW_NUMBER() OVER (PARTITION BY p.categoria ORDER BY SUM(io.total_linea) DESC) AS ranking_categoria
     FROM dbo.productos p
-    LEFT JOIN dbo.items_orden io ON p.id = io.producto_id
-    LEFT JOIN dbo.ordenes     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
+    LEFT JOIN dbo.orden_detalles io ON p.id = io.producto_id
+    LEFT JOIN dbo.orden_encabezado     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
     WHERE p.activo = 1
     GROUP BY p.categoria, p.id, p.uuid, p.nombre, p.sku;
 

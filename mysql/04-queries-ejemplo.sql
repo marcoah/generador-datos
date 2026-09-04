@@ -1,7 +1,9 @@
 -- ============================================================================
 -- QUERIES EJEMPLO PARA DASHBOARDS DE VENTAS
--- Optimizadas y listas para usar en Power BI, Vue.js, etc.
+-- MySQL 8.0+ | Optimizadas y listas para usar en Power BI, Vue.js, etc.
 -- ============================================================================
+
+USE ventas_test;
 
 -- ============================================================================
 -- DASHBOARD PRINCIPAL (KPIs)
@@ -18,7 +20,7 @@ SELECT
     COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) AS ordenes_pagadas,
     COUNT(CASE WHEN o.estado = 'cancelado' THEN 1 END) AS ordenes_canceladas
 FROM orden_encabezado o
-WHERE DATE_TRUNC('month', o.fecha_orden) = DATE_TRUNC('month', CURRENT_DATE);
+WHERE DATE_FORMAT(o.fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE, '%Y-%m');
 
 -- Query 2: Comparación Mes Actual vs Mes Anterior
 WITH mes_actual AS (
@@ -27,7 +29,7 @@ WITH mes_actual AS (
         COUNT(*) AS ordenes,
         COUNT(DISTINCT cliente_id) AS clientes
     FROM orden_encabezado
-    WHERE DATE_TRUNC('month', fecha_orden) = DATE_TRUNC('month', CURRENT_DATE)
+    WHERE DATE_FORMAT(fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE, '%Y-%m')
 ),
 mes_anterior AS (
     SELECT
@@ -35,7 +37,7 @@ mes_anterior AS (
         COUNT(*) AS ordenes,
         COUNT(DISTINCT cliente_id) AS clientes
     FROM orden_encabezado
-    WHERE DATE_TRUNC('month', fecha_orden) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+    WHERE DATE_FORMAT(fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE - INTERVAL 1 MONTH, '%Y-%m')
 )
 SELECT
     ma.ingresos AS ingresos_mes_actual,
@@ -50,15 +52,15 @@ CROSS JOIN mes_anterior mant;
 -- Query 3: Tendencia Última Semana (por día)
 SELECT
     DATE(o.fecha_orden) AS fecha,
-    TO_CHAR(o.fecha_orden, 'TMDay') AS nombre_dia,
+    DAYNAME(o.fecha_orden) AS nombre_dia,
     COUNT(*) AS ordenes,
     SUM(o.monto_total) AS ingresos,
     AVG(o.monto_total) AS valor_promedio_orden,
     COUNT(CASE WHEN o.estado = 'entregado' THEN 1 END) AS entregadas,
     COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) AS ordenes_pagadas
 FROM orden_encabezado o
-WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '7 days'
-GROUP BY DATE(o.fecha_orden), TO_CHAR(o.fecha_orden, 'TMDay')
+WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 7 DAY
+GROUP BY DATE(o.fecha_orden), DAYNAME(o.fecha_orden)
 ORDER BY DATE(o.fecha_orden) DESC;
 
 -- ============================================================================
@@ -79,45 +81,46 @@ SELECT
     MAX(o.fecha_orden) AS fecha_ultima_venta
 FROM vendedores v
 LEFT JOIN orden_encabezado o ON v.id = o.vendedor_id
-    AND DATE_TRUNC('month', o.fecha_orden) = DATE_TRUNC('month', CURRENT_DATE)
-    AND o.estado != 'cancelado'
-WHERE v.activo = TRUE
+    AND DATE_FORMAT(o.fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE, '%Y-%m')
+    AND o.estado <> 'cancelado'
+WHERE v.activo = 1
 GROUP BY v.id, v.nombre, v.equipo, v.territorio, v.cuota_mensual, v.tasa_comision
-ORDER BY ventas_totales DESC NULLS LAST
+ORDER BY ventas_totales DESC
 LIMIT 10;
 
 -- Query 5: Comparativa de Vendedores (YTD vs Año Anterior)
+-- MySQL no soporta FULL OUTER JOIN: se emula con UNION de ids de ambos lados.
 WITH ytd_actual AS (
-    SELECT
-        v.id,
-        v.nombre,
-        SUM(o.monto_total) AS ventas_ytd
+    SELECT v.id, v.nombre, SUM(o.monto_total) AS ventas_ytd
     FROM vendedores v
     LEFT JOIN orden_encabezado o ON v.id = o.vendedor_id
-        AND DATE_TRUNC('year', o.fecha_orden) = DATE_TRUNC('year', CURRENT_DATE)
-        AND o.estado != 'cancelado'
-    WHERE v.activo = TRUE
+        AND YEAR(o.fecha_orden) = YEAR(CURRENT_DATE)
+        AND o.estado <> 'cancelado'
+    WHERE v.activo = 1
     GROUP BY v.id, v.nombre
 ),
 ytd_anterior AS (
-    SELECT
-        v.id,
-        v.nombre,
-        SUM(o.monto_total) AS ventas_ytd
+    SELECT v.id, v.nombre, SUM(o.monto_total) AS ventas_ytd
     FROM vendedores v
     LEFT JOIN orden_encabezado o ON v.id = o.vendedor_id
-        AND DATE_TRUNC('year', o.fecha_orden) = DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')
-        AND o.estado != 'cancelado'
-    WHERE v.activo = TRUE
+        AND YEAR(o.fecha_orden) = YEAR(CURRENT_DATE) - 1
+        AND o.estado <> 'cancelado'
+    WHERE v.activo = 1
     GROUP BY v.id, v.nombre
+),
+ids AS (
+    SELECT id FROM ytd_actual
+    UNION
+    SELECT id FROM ytd_anterior
 )
 SELECT
-    a.nombre,
+    COALESCE(a.nombre, ant.nombre) AS nombre,
     COALESCE(a.ventas_ytd, 0) AS ventas_ytd_actual,
     COALESCE(ant.ventas_ytd, 0) AS ventas_ytd_anterior,
     ROUND(100.0 * (COALESCE(a.ventas_ytd, 0) - COALESCE(ant.ventas_ytd, 0)) / NULLIF(COALESCE(ant.ventas_ytd, 1), 0), 2) AS crecimiento_yoy_pct
-FROM ytd_actual a
-FULL OUTER JOIN ytd_anterior ant ON a.id = ant.id
+FROM ids
+LEFT JOIN ytd_actual a ON ids.id = a.id
+LEFT JOIN ytd_anterior ant ON ids.id = ant.id
 ORDER BY COALESCE(a.ventas_ytd, 0) DESC;
 
 -- ============================================================================
@@ -135,8 +138,8 @@ SELECT
     COUNT(DISTINCT o.cliente_id) AS clientes_con_ordenes,
     ROUND(100.0 * COUNT(DISTINCT o.cliente_id) / NULLIF(COUNT(DISTINCT c.id), 0), 2) AS pct_conversion
 FROM clientes c
-LEFT JOIN orden_encabezado o ON c.id = o.cliente_id AND o.estado != 'cancelado'
-WHERE c.activo = TRUE
+LEFT JOIN orden_encabezado o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
+WHERE c.activo = 1
 GROUP BY c.segmento
 ORDER BY ingresos_totales DESC;
 
@@ -151,12 +154,12 @@ SELECT
     SUM(o.monto_total) AS valor_vida,
     ROUND(AVG(o.monto_total), 2) AS valor_promedio_orden,
     MAX(o.fecha_orden) AS fecha_ultima_compra,
-    CURRENT_DATE - MAX(o.fecha_orden)::DATE AS dias_desde_ultima_compra,
+    DATEDIFF(CURRENT_DATE, MAX(o.fecha_orden)) AS dias_desde_ultima_compra,
     COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) AS ordenes_pagadas,
     COUNT(CASE WHEN o.estado_pago IN ('pendiente', 'vencido') THEN 1 END) AS ordenes_sin_pago
 FROM clientes c
-LEFT JOIN orden_encabezado o ON c.id = o.cliente_id AND o.estado != 'cancelado'
-WHERE c.activo = TRUE
+LEFT JOIN orden_encabezado o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
+WHERE c.activo = 1
 GROUP BY c.id, c.nombre, c.segmento, c.industria, c.pais
 ORDER BY valor_vida DESC
 LIMIT 20;
@@ -168,14 +171,14 @@ SELECT
     c.segmento,
     c.valor_vida_total,
     MAX(o.fecha_orden) AS fecha_ultima_compra,
-    CURRENT_DATE - MAX(o.fecha_orden)::DATE AS dias_inactivo,
+    DATEDIFF(CURRENT_DATE, MAX(o.fecha_orden)) AS dias_inactivo,
     COUNT(DISTINCT o.id) AS ordenes_totales,
     SUM(o.monto_total) AS total_gastado
 FROM clientes c
 LEFT JOIN orden_encabezado o ON c.id = o.cliente_id
-WHERE c.activo = TRUE
+WHERE c.activo = 1
 GROUP BY c.id, c.nombre, c.segmento, c.valor_vida_total
-HAVING MAX(o.fecha_orden) < CURRENT_DATE - INTERVAL '90 days'
+HAVING MAX(o.fecha_orden) < CURRENT_DATE - INTERVAL 90 DAY
 ORDER BY dias_inactivo DESC;
 
 -- Query 9: Clientes Nuevos (últimos 30 días)
@@ -184,15 +187,15 @@ SELECT
     c.nombre,
     c.segmento,
     c.industria,
-    c.tamaño_empresa,
+    c.tamano_empresa,
     c.fecha_adquisicion,
     COUNT(DISTINCT o.id) AS ordenes_desde_adquisicion,
     SUM(o.monto_total) AS valor_compra_inicial,
     MAX(o.fecha_orden) AS fecha_primera_orden
 FROM clientes c
 LEFT JOIN orden_encabezado o ON c.id = o.cliente_id
-WHERE c.fecha_adquisicion >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY c.id, c.nombre, c.segmento, c.industria, c.tamaño_empresa, c.fecha_adquisicion
+WHERE c.fecha_adquisicion >= CURRENT_DATE - INTERVAL 30 DAY
+GROUP BY c.id, c.nombre, c.segmento, c.industria, c.tamano_empresa, c.fecha_adquisicion
 ORDER BY c.fecha_adquisicion DESC;
 
 -- ============================================================================
@@ -208,7 +211,7 @@ SELECT
     p.marca,
     p.precio_lista,
     p.precio_costo,
-    ROUND((p.precio_lista - p.precio_costo) / p.precio_lista * 100, 2) AS margen_pct,
+    ROUND((p.precio_lista - p.precio_costo) / NULLIF(p.precio_lista, 0) * 100, 2) AS margen_pct,
     COUNT(DISTINCT io.orden_id) AS veces_pedido,
     SUM(io.cantidad) AS cantidad_total_vendida,
     SUM(io.total_linea) AS ingresos_totales,
@@ -218,8 +221,8 @@ SELECT
     SUM(io.cantidad_devuelta) AS total_devuelto
 FROM productos p
 LEFT JOIN orden_detalles io ON p.id = io.producto_id
-LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado != 'cancelado'
-WHERE p.activo = TRUE
+LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado <> 'cancelado'
+WHERE p.activo = 1
 GROUP BY p.id, p.nombre, p.sku, p.categoria, p.marca, p.precio_lista, p.precio_costo
 ORDER BY ingresos_totales DESC
 LIMIT 20;
@@ -233,16 +236,16 @@ SELECT
     p.marca,
     p.precio_lista,
     p.fecha_lanzamiento,
-    CURRENT_DATE - p.fecha_lanzamiento::DATE AS dias_desde_lanzamiento,
+    DATEDIFF(CURRENT_DATE, p.fecha_lanzamiento) AS dias_desde_lanzamiento,
     p.stock_actual,
     CASE
-        WHEN p.fecha_lanzamiento > CURRENT_DATE - INTERVAL '90 days' THEN 'Nuevo'
+        WHEN p.fecha_lanzamiento > CURRENT_DATE - INTERVAL 90 DAY THEN 'Nuevo'
         WHEN p.fecha_descontinuacion IS NOT NULL THEN 'Descontinuado'
         ELSE 'Sin ventas'
     END AS razon_estado
 FROM productos p
 LEFT JOIN orden_detalles io ON p.id = io.producto_id
-WHERE p.activo = TRUE
+WHERE p.activo = 1
     AND io.id IS NULL
 ORDER BY p.fecha_lanzamiento DESC;
 
@@ -259,8 +262,8 @@ SELECT
     ROUND(100.0 * SUM(io.cantidad_devuelta) / NULLIF(SUM(io.cantidad), 0), 2) AS tasa_devolucion_pct
 FROM productos p
 LEFT JOIN orden_detalles io ON p.id = io.producto_id
-LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado != 'cancelado'
-WHERE p.activo = TRUE
+LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado <> 'cancelado'
+WHERE p.activo = 1
 GROUP BY p.categoria
 ORDER BY ingresos DESC;
 
@@ -276,7 +279,7 @@ SELECT
     AVG(o.monto_total) AS monto_promedio_orden,
     MAX(o.fecha_orden) AS orden_mas_reciente
 FROM orden_encabezado o
-WHERE o.estado != 'cancelado'
+WHERE o.estado <> 'cancelado'
     AND o.estado_pago IN ('pendiente', 'parcial', 'vencido')
 GROUP BY o.estado_pago
 ORDER BY monto_pendiente DESC;
@@ -290,17 +293,17 @@ SELECT
     o.fecha_orden,
     o.monto_total,
     o.estado_pago,
-    CURRENT_DATE - o.fecha_orden::DATE AS dias_atraso,
+    DATEDIFF(CURRENT_DATE, o.fecha_orden) AS dias_atraso,
     CASE
-        WHEN CURRENT_DATE - o.fecha_orden::DATE > 90 THEN 'Crítico'
-        WHEN CURRENT_DATE - o.fecha_orden::DATE > 60 THEN 'Urgente'
+        WHEN DATEDIFF(CURRENT_DATE, o.fecha_orden) > 90 THEN 'Crítico'
+        WHEN DATEDIFF(CURRENT_DATE, o.fecha_orden) > 60 THEN 'Urgente'
         ELSE 'Seguimiento'
     END AS prioridad_cobranza
 FROM orden_encabezado o
 JOIN clientes c ON o.cliente_id = c.id
-WHERE o.fecha_orden < CURRENT_DATE - INTERVAL '60 days'
+WHERE o.fecha_orden < CURRENT_DATE - INTERVAL 60 DAY
     AND o.estado_pago IN ('pendiente', 'parcial', 'vencido')
-    AND o.estado != 'cancelado'
+    AND o.estado <> 'cancelado'
 ORDER BY dias_atraso DESC;
 
 -- Query 15: Análisis de Métodos de Pago
@@ -313,7 +316,7 @@ SELECT
     COUNT(CASE WHEN o.estado_pago IN ('pendiente', 'vencido') THEN 1 END) AS pagos_pendientes,
     ROUND(100.0 * COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) / COUNT(*), 2) AS tasa_exito_pct
 FROM orden_encabezado o
-WHERE o.estado != 'cancelado'
+WHERE o.estado <> 'cancelado'
 GROUP BY o.metodo_pago
 ORDER BY monto_total DESC;
 
@@ -342,7 +345,7 @@ SELECT
     COUNT(CASE WHEN d.estado = 'aprobado' THEN 1 END) AS aprobadas,
     ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM devoluciones), 2) AS pct_del_total
 FROM devoluciones d
-WHERE d.fecha_devolucion >= CURRENT_DATE - INTERVAL '1 year'
+WHERE d.fecha_devolucion >= CURRENT_DATE - INTERVAL 1 YEAR
 GROUP BY d.motivo
 ORDER BY cantidad_devoluciones DESC
 LIMIT 10;
@@ -390,7 +393,7 @@ SELECT
     END AS roi
 FROM campanas c
 WHERE c.estado = 'activa'
-    OR c.fecha_fin >= CURRENT_DATE - INTERVAL '30 days'
+    OR c.fecha_fin >= CURRENT_DATE - INTERVAL 30 DAY
 ORDER BY ingresos_generados DESC;
 
 -- ============================================================================
@@ -399,7 +402,7 @@ ORDER BY ingresos_generados DESC;
 
 -- Query 20: Tendencia Mensual (Últimos 12 Meses)
 SELECT
-    DATE_TRUNC('month', o.fecha_orden)::DATE AS mes,
+    DATE(DATE_FORMAT(o.fecha_orden, '%Y-%m-01')) AS mes,
     COUNT(*) AS cantidad_ordenes,
     COUNT(DISTINCT o.cliente_id) AS clientes_unicos,
     SUM(o.monto_total) AS ingresos,
@@ -410,36 +413,13 @@ SELECT
 FROM orden_encabezado o
 LEFT JOIN orden_detalles io ON o.id = io.orden_id
 LEFT JOIN productos p ON io.producto_id = p.id
-WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '12 months'
-    AND o.estado != 'cancelado'
-GROUP BY DATE_TRUNC('month', o.fecha_orden)
+WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 12 MONTH
+    AND o.estado <> 'cancelado'
+GROUP BY DATE(DATE_FORMAT(o.fecha_orden, '%Y-%m-01'))
 ORDER BY mes DESC;
 
 -- Query 21: Pronóstico Simple (Tendencia Lineal)
-WITH ultimos_12_meses AS (
-    SELECT
-        DATE_TRUNC('month', o.fecha_orden)::DATE AS mes,
-        ROW_NUMBER() OVER (ORDER BY DATE_TRUNC('month', o.fecha_orden)) AS numero_mes,
-        SUM(o.monto_total) AS ingresos
-    FROM orden_encabezado o
-    WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '12 months'
-        AND o.estado != 'cancelado'
-    GROUP BY DATE_TRUNC('month', o.fecha_orden)
-),
-tendencia AS (
-    SELECT
-        REGR_SLOPE(ingresos, numero_mes) AS pendiente,
-        REGR_INTERCEPT(ingresos, numero_mes) AS intercepto,
-        MAX(numero_mes) AS ultimo_numero_mes,
-        MAX(mes) AS ultimo_mes
-    FROM ultimos_12_meses
-)
-SELECT
-    (t.ultimo_mes + (n || ' months')::INTERVAL)::DATE AS mes_pronostico,
-    GREATEST(0, ROUND((t.intercepto + t.pendiente * (t.ultimo_numero_mes + n))::NUMERIC, 2)) AS ingresos_pronosticados
-FROM tendencia t
-CROSS JOIN GENERATE_SERIES(1, 3) n
-WHERE t.pendiente IS NOT NULL;
+CALL sp_pronostico_ventas(3, 12);
 
 -- ============================================================================
 -- QUERIES PARA REPORTES EJECUTIVOS
@@ -448,15 +428,15 @@ WHERE t.pendiente IS NOT NULL;
 -- Query 22: Reporte Ejecutivo Semanal
 SELECT
     'Semana' AS periodo,
-    MAX(o.fecha_orden)::DATE - INTERVAL '6 days' AS fecha_inicio,
-    MAX(o.fecha_orden)::DATE AS fecha_fin,
+    DATE_SUB(MAX(DATE(o.fecha_orden)), INTERVAL 6 DAY) AS fecha_inicio,
+    MAX(DATE(o.fecha_orden)) AS fecha_fin,
     COUNT(*) AS ordenes,
     SUM(o.monto_total) AS ingresos,
     COUNT(DISTINCT o.cliente_id) AS clientes_activos,
     COUNT(CASE WHEN o.estado = 'cancelado' THEN 1 END) AS ordenes_canceladas,
     ROUND(100.0 * COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) / NULLIF(COUNT(*), 0), 2) AS pct_cobrado
 FROM orden_encabezado o
-WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '7 days';
+WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 7 DAY;
 
 -- Query 23: Export para Power BI - Tabla de Hechos
 SELECT
@@ -469,7 +449,7 @@ SELECT
     c.id AS cliente_id,
     c.segmento,
     c.industria,
-    c.tamaño_empresa,
+    c.tamano_empresa,
     v.id AS vendedor_id,
     v.nombre AS nombre_vendedor,
     v.equipo,
@@ -480,8 +460,23 @@ FROM orden_encabezado o
 JOIN clientes c ON o.cliente_id = c.id
 LEFT JOIN vendedores v ON o.vendedor_id = v.id
 LEFT JOIN orden_detalles io ON o.id = io.orden_id
-WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '12 months'
+WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 12 MONTH
 ORDER BY o.fecha_orden DESC;
+
+-- ============================================================================
+-- LLAMADAS A PROCEDIMIENTOS ANALÍTICOS
+-- (En MySQL las funciones de tabla se implementan como PROCEDURE: se invocan
+--  con CALL en vez de SELECT * FROM ...)
+-- ============================================================================
+
+-- ARR por segmento
+CALL sp_calcular_arr(12);
+
+-- Tasa de churn
+CALL sp_calcular_churn(90);
+
+-- Análisis de cohortes
+CALL sp_analisis_cohortes('ingresos');
 
 -- ============================================================================
 -- FIN DE QUERIES EJEMPLO

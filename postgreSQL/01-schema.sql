@@ -173,19 +173,19 @@ CREATE TABLE IF NOT EXISTS orden_encabezado (
     creado_por VARCHAR(100)
 );
 
-CREATE INDEX idx_ordenes_cliente_id ON ordenes(cliente_id);
-CREATE INDEX idx_ordenes_vendedor_id ON ordenes(vendedor_id);
-CREATE INDEX idx_ordenes_fecha_orden ON ordenes(fecha_orden);
-CREATE INDEX idx_ordenes_estado ON ordenes(estado);
-CREATE INDEX idx_ordenes_estado_pago ON ordenes(estado_pago);
-CREATE INDEX idx_ordenes_creado_en ON ordenes(creado_en);
+CREATE INDEX idx_orden_encabezado_cliente_id ON orden_encabezado(cliente_id);
+CREATE INDEX idx_orden_encabezado_vendedor_id ON orden_encabezado(vendedor_id);
+CREATE INDEX idx_orden_encabezado_fecha_orden ON orden_encabezado(fecha_orden);
+CREATE INDEX idx_orden_encabezado_estado ON orden_encabezado(estado);
+CREATE INDEX idx_orden_encabezado_estado_pago ON orden_encabezado(estado_pago);
+CREATE INDEX idx_orden_encabezado_creado_en ON orden_encabezado(creado_en);
 
 -- ============================================================================
 -- DETALLE: ÍTEMS DE ÓRDENES
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS orden_detalles (
     id BIGSERIAL PRIMARY KEY,
-    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+    orden_id BIGINT NOT NULL REFERENCES orden_encabezado(id) ON DELETE CASCADE,
     producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
 
     -- Cantidad y precio
@@ -207,9 +207,9 @@ CREATE TABLE IF NOT EXISTS orden_detalles (
     actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_items_orden_orden_id ON items_orden(orden_id);
-CREATE INDEX idx_items_orden_producto_id ON items_orden(producto_id);
-CREATE INDEX idx_items_orden_completado ON items_orden(completado);
+CREATE INDEX idx_orden_detalles_orden_id ON orden_detalles(orden_id);
+CREATE INDEX idx_orden_detalles_producto_id ON orden_detalles(producto_id);
+CREATE INDEX idx_orden_detalles_completado ON orden_detalles(completado);
 
 -- ============================================================================
 -- TRANSACCIONES: PAGOS
@@ -217,7 +217,7 @@ CREATE INDEX idx_items_orden_completado ON items_orden(completado);
 CREATE TABLE IF NOT EXISTS pagos (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE RESTRICT,
+    orden_id BIGINT NOT NULL REFERENCES orden_encabezado(id) ON DELETE RESTRICT,
 
     -- Monto
     monto NUMERIC(15,2) NOT NULL,
@@ -245,7 +245,7 @@ CREATE INDEX idx_pagos_estado ON pagos(estado);
 CREATE TABLE IF NOT EXISTS devoluciones (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID UNIQUE DEFAULT uuid_generate_v4(),
-    orden_id BIGINT NOT NULL REFERENCES ordenes(id) ON DELETE RESTRICT,
+    orden_id BIGINT NOT NULL REFERENCES orden_encabezado(id) ON DELETE RESTRICT,
 
     -- Información
     fecha_devolucion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -382,12 +382,12 @@ CREATE TABLE IF NOT EXISTS cargas_datos (
 -- ============================================================================
 COMMENT ON TABLE clientes IS 'Tabla de dimensión de clientes con información demográfica y de segmentación';
 COMMENT ON TABLE productos IS 'Tabla de dimensión de productos con categorización y precios';
-COMMENT ON TABLE ordenes IS 'Tabla de hechos de órdenes de ventas';
-COMMENT ON TABLE items_orden IS 'Detalles de líneas en órdenes';
+COMMENT ON TABLE orden_encabezado IS 'Tabla de hechos de órdenes de ventas';
+COMMENT ON TABLE orden_detalles IS 'Detalles de líneas en órdenes';
 COMMENT ON TABLE pagos IS 'Transacciones de pagos y cobros';
 COMMENT ON TABLE devoluciones IS 'Registro de devoluciones y reembolsos';
-COMMENT ON COLUMN ordenes.monto_total IS 'Total final: subtotal - descuento + impuesto + envío';
-COMMENT ON COLUMN items_orden.total_linea IS 'Generado automáticamente: cantidad * precio_unitario * (1 - descuento%)';
+COMMENT ON COLUMN orden_encabezado.monto_total IS 'Total final: subtotal - descuento + impuesto + envío';
+COMMENT ON COLUMN orden_detalles.total_linea IS 'Generado automáticamente: cantidad * precio_unitario * (1 - descuento%)';
 
 -- ============================================================================
 -- TRIGGERS PARA MANTENER INTEGRIDAD DE DATOS
@@ -397,9 +397,9 @@ COMMENT ON COLUMN items_orden.total_linea IS 'Generado automáticamente: cantida
 CREATE OR REPLACE FUNCTION actualizar_total_orden()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE ordenes
+    UPDATE orden_encabezado
     SET monto_total = COALESCE(
-        (SELECT SUM(total_linea) FROM items_orden WHERE orden_id = NEW.orden_id),
+        (SELECT SUM(total_linea) FROM orden_detalles WHERE orden_id = NEW.orden_id),
         0
     ) + COALESCE(monto_impuesto, 0) + COALESCE(costo_envio, 0) - COALESCE(monto_descuento, 0),
         actualizado_en = CURRENT_TIMESTAMP
@@ -410,17 +410,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_actualizar_total_orden_insert
-AFTER INSERT ON items_orden
+AFTER INSERT ON orden_detalles
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_total_orden();
 
 CREATE TRIGGER trg_actualizar_total_orden_update
-AFTER UPDATE ON items_orden
+AFTER UPDATE ON orden_detalles
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_total_orden();
 
 CREATE TRIGGER trg_actualizar_total_orden_delete
-AFTER DELETE ON items_orden
+AFTER DELETE ON orden_detalles
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_total_orden();
 
@@ -430,11 +430,11 @@ RETURNS TRIGGER AS $$
 BEGIN
     UPDATE clientes
     SET valor_vida_total = COALESCE(
-        (SELECT SUM(monto_total) FROM ordenes WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
+        (SELECT SUM(monto_total) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
         0
     ),
         fecha_ultima_compra = COALESCE(
-            (SELECT MAX(fecha_orden) FROM ordenes WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
+            (SELECT MAX(fecha_orden) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado != 'cancelado'),
             fecha_ultima_compra
         ),
         actualizado_en = CURRENT_TIMESTAMP
@@ -445,7 +445,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_actualizar_valor_vida_cliente
-AFTER INSERT OR UPDATE ON ordenes
+AFTER INSERT OR UPDATE ON orden_encabezado
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_valor_vida_cliente();
 

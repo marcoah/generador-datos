@@ -6,6 +6,11 @@
 -- Se usan tablas temporales de valores y CROSS APPLY / NEWID() para aleatoriedad.
 -- ============================================================================
 
+-- Requerido porque dbo.orden_detalles tiene una columna calculada PERSISTED
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 -- ============================================================================
 -- TABLA DE APOYO: Números del 1 al 10000 (reutilizable)
 -- Se usa en lugar de GENERATE_SERIES que no existe en SQL Server < 2022
@@ -74,41 +79,12 @@ RETURN
 GO
 
 -- ============================================================================
--- FUNCIÓN AUXILIAR: Obtener nombre aleatorio
+-- NOTA: SQL Server prohíbe llamar a NEWID() dentro de una función escalar
+-- ("side-effecting operator"). Por eso la selección de nombre aleatorio no
+-- se implementa como función: se resuelve inline con CROSS APPLY en cada
+-- procedimiento que la necesita (ver sp_generar_clientes y sp_generar_vendedores),
+-- reutilizando las mismas listas de nombres.
 -- ============================================================================
-CREATE OR ALTER FUNCTION dbo.fn_nombre_aleatorio(@genero CHAR(1) = 'M')
-RETURNS NVARCHAR(255) AS
-BEGIN
-    DECLARE @nombres_m TABLE (n INT IDENTITY(1,1), v NVARCHAR(50));
-    INSERT INTO @nombres_m (v) VALUES
-        ('Carlos'),('Miguel'),('Juan'),('Luis'),('Pedro'),
-        ('Roberto'),('Antonio'),('Diego'),('Francisco'),('Alejandro'),
-        ('Javier'),('Andrés'),('Sergio'),('Ricardo'),('Fernando');
-
-    DECLARE @nombres_f TABLE (n INT IDENTITY(1,1), v NVARCHAR(50));
-    INSERT INTO @nombres_f (v) VALUES
-        ('María'),('Carmen'),('Rosa'),('Isabel'),('Josefina'),
-        ('Ana'),('Francisca'),('Dolores'),('Catalina'),('Antonia'),
-        ('Montserrat'),('Pilar'),('Sofía'),('Teresa'),('Laura');
-
-    DECLARE @apellidos TABLE (n INT IDENTITY(1,1), v NVARCHAR(50));
-    INSERT INTO @apellidos (v) VALUES
-        ('García'),('Martínez'),('Rodríguez'),('López'),('Hernández'),
-        ('González'),('Pérez'),('Sánchez'),('Ramírez'),('Torres'),
-        ('Flores'),('Rivera'),('Gómez'),('Díaz'),('Reyes');
-
-    DECLARE @nombre NVARCHAR(50), @apellido NVARCHAR(50);
-
-    IF @genero = 'F'
-        SELECT @nombre   = v FROM @nombres_f WHERE n = (ABS(CHECKSUM(NEWID())) % 15) + 1;
-    ELSE
-        SELECT @nombre   = v FROM @nombres_m WHERE n = (ABS(CHECKSUM(NEWID())) % 15) + 1;
-
-    SELECT @apellido = v FROM @apellidos WHERE n = (ABS(CHECKSUM(NEWID())) % 15) + 1;
-
-    RETURN @nombre + N' ' + @apellido;
-END;
-GO
 
 -- ============================================================================
 -- PROCEDIMIENTO: Generar clientes
@@ -161,11 +137,8 @@ BEGIN
          pais, provincia, ciudad, codigo_postal,
          limite_credito, fecha_adquisicion, activo)
     SELECT TOP (@cantidad)
-        dbo.fn_nombre_aleatorio(CASE WHEN ABS(CHECKSUM(NEWID())) % 2 = 0 THEN 'M' ELSE 'F' END) AS nombre,
-        LOWER(REPLACE(
-            dbo.fn_nombre_aleatorio(CASE WHEN ABS(CHECKSUM(NEWID())) % 2 = 0 THEN 'M' ELSE 'F' END),
-            ' ', '.'
-        )) + '@' +
+        nm.nombre_completo                                                                        AS nombre,
+        LOWER(REPLACE(nm.nombre_completo, ' ', '.')) + '.' + CAST(num.n AS NVARCHAR) + '@' +
         CASE ABS(CHECKSUM(NEWID())) % 5
             WHEN 0 THEN 'gmail.com' WHEN 1 THEN 'yahoo.com'
             WHEN 2 THEN 'outlook.com' WHEN 3 THEN 'empresa.com' ELSE 'mail.com'
@@ -184,12 +157,15 @@ BEGIN
         DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 365), GETDATE())                                AS fecha_adquisicion,
         CASE WHEN s.v = 'inactivo' THEN 0 ELSE 1 END                                            AS activo
     FROM dbo.numeros num
-    CROSS APPLY (SELECT TOP 1 v FROM @segmentos  ORDER BY NEWID()) s
-    CROSS APPLY (SELECT TOP 1 v FROM @industrias ORDER BY NEWID()) i
-    CROSS APPLY (SELECT TOP 1 v FROM @tamaños    ORDER BY NEWID()) t
-    CROSS APPLY (SELECT TOP 1 v FROM @paises     ORDER BY NEWID()) pa
-    CROSS APPLY (SELECT TOP 1 v FROM @provincias ORDER BY NEWID()) pr
-    CROSS APPLY (SELECT TOP 1 v FROM @ciudades   ORDER BY NEWID()) ci
+    CROSS APPLY (SELECT TOP 1 v FROM (VALUES('M'),('F')) g(v) ORDER BY CHECKSUM(NEWID(), num.n)) gen
+    CROSS APPLY (SELECT idx_n = (ABS(CHECKSUM(NEWID())) % 10) + 1, idx_a = (ABS(CHECKSUM(NEWID())) % 10) + 1) idx
+    CROSS APPLY dbo.fn_nombre_por_indices(gen.v, idx.idx_n, idx.idx_a) nm
+    CROSS APPLY (SELECT TOP 1 v FROM @segmentos  ORDER BY CHECKSUM(NEWID(), num.n)) s
+    CROSS APPLY (SELECT TOP 1 v FROM @industrias ORDER BY CHECKSUM(NEWID(), num.n)) i
+    CROSS APPLY (SELECT TOP 1 v FROM @tamaños    ORDER BY CHECKSUM(NEWID(), num.n)) t
+    CROSS APPLY (SELECT TOP 1 v FROM @paises     ORDER BY CHECKSUM(NEWID(), num.n)) pa
+    CROSS APPLY (SELECT TOP 1 v FROM @provincias ORDER BY CHECKSUM(NEWID(), num.n)) pr
+    CROSS APPLY (SELECT TOP 1 v FROM @ciudades   ORDER BY CHECKSUM(NEWID(), num.n)) ci
     WHERE num.n <= @cantidad;
 
     DECLARE @total INT = (SELECT COUNT(*) FROM dbo.clientes);
@@ -244,15 +220,15 @@ BEGIN
         DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 730), GETDATE())                   AS fecha_lanzamiento,
         CASE WHEN ABS(CHECKSUM(NEWID())) % 100 > 15 THEN 1 ELSE 0 END             AS activo
     FROM dbo.numeros num
-    CROSS APPLY (SELECT TOP 1 v FROM @categorias ORDER BY NEWID()) c
+    CROSS APPLY (SELECT TOP 1 v FROM @categorias ORDER BY CHECKSUM(NEWID(), num.n)) c
     CROSS APPLY (
         SELECT TOP 1 v AS subcategoria FROM (VALUES
             ('Laptops'),('Tablets'),('Accesorios'),('Monitores'),('Almacenamiento'),
             ('Base de Datos'),('CRM'),('ERP'),('Analítica'),('Seguridad'),
             ('Soporte'),('Capacitación'),('Implementación'),('Mantenimiento'),('Otro')
-        ) sub(v) ORDER BY NEWID()
+        ) sub(v) ORDER BY CHECKSUM(NEWID(), num.n)
     ) sc
-    CROSS APPLY (SELECT TOP 1 v FROM @marcas ORDER BY NEWID()) m
+    CROSS APPLY (SELECT TOP 1 v FROM @marcas ORDER BY CHECKSUM(NEWID(), num.n)) m
     WHERE num.n <= @cantidad;
 
     DECLARE @total INT = (SELECT COUNT(*) FROM dbo.productos);
@@ -286,10 +262,8 @@ BEGIN
         (nombre, email, telefono, equipo, territorio, gerente_id,
          tasa_comision, cuota_mensual, activo, fecha_contratacion)
     SELECT TOP (@cantidad)
-        dbo.fn_nombre_aleatorio(CASE WHEN ABS(CHECKSUM(NEWID())) % 2 = 0 THEN 'M' ELSE 'F' END) AS nombre,
-        LOWER(REPLACE(
-            dbo.fn_nombre_aleatorio('M'), ' ', '.'
-        )) + '@empresa.com'                                                                       AS email,
+        nm.nombre_completo                                                                       AS nombre,
+        LOWER(REPLACE(nm.nombre_completo, ' ', '.')) + '.' + CAST(num.n AS NVARCHAR) + '@empresa.com' AS email,
         '+54 11 ' + RIGHT('00000000' + CAST(ABS(CHECKSUM(NEWID())) % 99999999 AS NVARCHAR), 8)   AS telefono,
         eq.v                                                                                      AS equipo,
         ter.v                                                                                     AS territorio,
@@ -299,8 +273,11 @@ BEGIN
         CASE WHEN ABS(CHECKSUM(NEWID())) % 10 > 1 THEN 1 ELSE 0 END                              AS activo,
         DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 1095), GETDATE())                                AS fecha_contratacion
     FROM dbo.numeros num
-    CROSS APPLY (SELECT TOP 1 v FROM @equipos     ORDER BY NEWID()) eq
-    CROSS APPLY (SELECT TOP 1 v FROM @territorios ORDER BY NEWID()) ter
+    CROSS APPLY (SELECT TOP 1 v FROM (VALUES('M'),('F')) g(v) ORDER BY CHECKSUM(NEWID(), num.n)) gen
+    CROSS APPLY (SELECT idx_n = (ABS(CHECKSUM(NEWID())) % 10) + 1, idx_a = (ABS(CHECKSUM(NEWID())) % 10) + 1) idx
+    CROSS APPLY dbo.fn_nombre_por_indices(gen.v, idx.idx_n, idx.idx_a) nm
+    CROSS APPLY (SELECT TOP 1 v FROM @equipos     ORDER BY CHECKSUM(NEWID(), num.n)) eq
+    CROSS APPLY (SELECT TOP 1 v FROM @territorios ORDER BY CHECKSUM(NEWID(), num.n)) ter
     WHERE num.n <= @cantidad;
 
     -- Asignar gerentes aleatoriamente al ~30% de vendedores
@@ -308,9 +285,9 @@ BEGIN
     SET gerente_id = g.id
     FROM dbo.vendedores v
     CROSS APPLY (
-        SELECT TOP 1 id FROM dbo.vendedores WHERE id <> v.id ORDER BY NEWID()
+        SELECT TOP 1 id FROM dbo.vendedores WHERE id <> v.id ORDER BY CHECKSUM(NEWID(), v.id)
     ) g
-    WHERE ABS(CHECKSUM(NEWID())) % 10 > 7;
+    WHERE ABS(CHECKSUM(NEWID(), v.id)) % 10 > 7;
 
     DECLARE @total INT = (SELECT COUNT(*) FROM dbo.vendedores);
     PRINT 'Vendedores generados: ' + CAST(@total AS NVARCHAR);
@@ -331,8 +308,8 @@ BEGIN
 
     IF @limpiar = 1
     BEGIN
-        DELETE FROM dbo.items_orden;
-        DELETE FROM dbo.ordenes;
+        DELETE FROM dbo.orden_detalles;
+        DELETE FROM dbo.orden_encabezado;
         PRINT 'Tablas de órdenes limpiadas';
     END;
 
@@ -346,7 +323,7 @@ BEGIN
           CAST(@total_vendedores AS NVARCHAR) + ' vendedores';
 
     -- ---- Insertar órdenes ----
-    INSERT INTO dbo.ordenes
+    INSERT INTO dbo.orden_encabezado
         (cliente_id, vendedor_id, fecha_orden, fecha_entrega_prometida,
          estado, estado_pago, metodo_pago, monto_impuesto, costo_envio,
          porcentaje_descuento, creado_por)
@@ -384,12 +361,12 @@ BEGIN
              ELSE 0 END                                                              AS porcentaje_descuento,
         'sistema'                                                                    AS creado_por
     FROM dbo.numeros num
-    CROSS APPLY (SELECT TOP 1 id FROM dbo.clientes   WHERE activo = 1 ORDER BY NEWID()) c
-    CROSS APPLY (SELECT TOP 1 id FROM dbo.vendedores WHERE activo = 1 ORDER BY NEWID()) v
+    CROSS APPLY (SELECT TOP 1 id FROM dbo.clientes   WHERE activo = 1 ORDER BY CHECKSUM(NEWID(), num.n)) c
+    CROSS APPLY (SELECT TOP 1 id FROM dbo.vendedores WHERE activo = 1 ORDER BY CHECKSUM(NEWID(), num.n)) v
     WHERE num.n <= @cantidad_ordenes;
 
     -- ---- Insertar ítems (1-8 por orden) ----
-    INSERT INTO dbo.items_orden
+    INSERT INTO dbo.orden_detalles
         (orden_id, producto_id, cantidad, precio_unitario, porcentaje_descuento, completado, cantidad_devuelta)
     SELECT
         o.id                                                                        AS orden_id,
@@ -401,15 +378,15 @@ BEGIN
         CASE WHEN o.estado IN ('entregado','enviado') THEN 1 ELSE 0 END            AS completado,
         CASE WHEN o.estado = 'devuelto' AND ABS(CHECKSUM(NEWID())) % 2 = 0
              THEN ABS(CHECKSUM(NEWID())) % 3 + 1 ELSE 0 END                        AS cantidad_devuelta
-    FROM dbo.ordenes o
+    FROM dbo.orden_encabezado o
     CROSS APPLY (
-        SELECT TOP (ABS(CHECKSUM(NEWID())) % 8 + 1) id, precio_lista
+        SELECT TOP (ABS(CHECKSUM(NEWID(), o.id)) % 8 + 1) id, precio_lista
         FROM dbo.productos WHERE activo = 1
-        ORDER BY NEWID()
+        ORDER BY CHECKSUM(NEWID(), o.id)
     ) p;
 
-    DECLARE @tot_ord  INT = (SELECT COUNT(*) FROM dbo.ordenes);
-    DECLARE @tot_items INT = (SELECT COUNT(*) FROM dbo.items_orden);
+    DECLARE @tot_ord  INT = (SELECT COUNT(*) FROM dbo.orden_encabezado);
+    DECLARE @tot_items INT = (SELECT COUNT(*) FROM dbo.orden_detalles);
     PRINT 'Órdenes creadas: ' + CAST(@tot_ord AS NVARCHAR) +
           ' | Ítems creados: ' + CAST(@tot_items AS NVARCHAR);
 
@@ -447,7 +424,7 @@ BEGIN
         DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 365), GETDATE())                  AS fecha_pago,
         'REF-' + RIGHT('00000000' + CAST(ABS(CHECKSUM(NEWID())) % 999999 AS NVARCHAR), 8) AS numero_referencia,
         'completado'                                                               AS estado
-    FROM dbo.ordenes o
+    FROM dbo.orden_encabezado o
     WHERE o.estado_pago IN ('pagado', 'parcial', 'vencido')
       AND o.monto_total > 0;
 
@@ -505,8 +482,8 @@ BEGIN
     SET @inicio = GETDATE();
     EXEC dbo.sp_generar_ordenes @cantidad_ordenes = @ordenes, @dias_atras = @dias_atras, @limpiar = 1;
     SET @fin = GETDATE();
-    DECLARE @total_ord  INT = (SELECT COUNT(*) FROM dbo.ordenes);
-    DECLARE @total_items INT = (SELECT COUNT(*) FROM dbo.items_orden);
+    DECLARE @total_ord  INT = (SELECT COUNT(*) FROM dbo.orden_encabezado);
+    DECLARE @total_items INT = (SELECT COUNT(*) FROM dbo.orden_detalles);
     INSERT INTO #resultados VALUES ('ÓRDENES E ÍTEMS', @total_ord + @total_items, DATEDIFF(MILLISECOND, @inicio, @fin) / 1000.0);
 
     -- Pagos

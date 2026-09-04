@@ -1,163 +1,510 @@
 -- ============================================================================
 -- SCHEMA DE BASE DE DATOS - SISTEMA DE VENTAS
--- MySQL Script para crear un esquema de base de datos de ventas
+-- MySQL 8.0+
 -- ============================================================================
 -- Este schema está diseñado para:
 -- 1. Generar datos realistas de ventas
 -- 2. Soportar análisis complejos en Power BI y dashboards custom
 -- 3. Ser fácil de limpiar y resetear para pruebas
+--
+-- Equivalente funcional del schema de postgreSQL/ y t-sql/, adaptado a MySQL:
+-- - BIGSERIAL/IDENTITY -> BIGINT AUTO_INCREMENT
+-- - UUID nativo -> CHAR(36) DEFAULT (UUID())
+-- - NUMERIC -> DECIMAL
+-- - Columna GENERATED ALWAYS AS (...) STORED (soportada desde MySQL 5.7.6)
 -- ============================================================================
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET NAMES utf8 */;
-/*!50503 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+CREATE DATABASE IF NOT EXISTS ventas_test
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE DATABASE IF NOT EXISTS testing_db;
+USE ventas_test;
 
-USE testing_db;
+-- ============================================================================
+-- DIMENSIÓN: CLIENTES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS clientes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    nombre VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NULL,
+    telefono VARCHAR(20) NULL,
 
-CREATE TABLE IF NOT EXISTS `categorias` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `slug` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `notes` text COLLATE utf8mb4_unicode_ci,
-  `parent_id` bigint unsigned DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `categories_slug_unique` (`slug`),
-  KEY `categories_parent_id_foreign` (`parent_id`),
-  CONSTRAINT `categories_parent_id_foreign` FOREIGN KEY (`parent_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    -- Segmentación
+    segmento VARCHAR(50) NOT NULL DEFAULT 'estandar',
+        -- Valores: premium, estandar, prueba, vip, inactivo
+    industria VARCHAR(100) NULL,
+    tamano_empresa VARCHAR(50) NULL,
+        -- Valores: startup, pequeña, mediana, grande, corporacion
 
-CREATE TABLE IF NOT EXISTS `clientes` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tax_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `cellphone` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `phone1` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `phone2` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `contact` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `email1` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `email2` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `address` text COLLATE utf8mb4_unicode_ci,
-  `city` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `state` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `postalcode` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `country` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `industry` text COLLATE utf8mb4_unicode_ci,
-  `notes` text COLLATE utf8mb4_unicode_ci,
-  `status` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `settings` json DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    -- Ubicación
+    pais VARCHAR(100) NULL,
+    provincia VARCHAR(100) NULL,
+    ciudad VARCHAR(100) NULL,
+    codigo_postal VARCHAR(20) NULL,
 
+    -- Información financiera
+    limite_credito DECIMAL(15,2) NULL,
+    valor_vida_total DECIMAL(15,2) NOT NULL DEFAULT 0,
 
-CREATE TABLE IF NOT EXISTS `orden_detalles` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `order_id` bigint unsigned NOT NULL,
-  `product_id` bigint unsigned NOT NULL,
-  `description` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `sku` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sort_order` smallint unsigned NOT NULL DEFAULT '0',
-  `quantity` decimal(10,2) NOT NULL,
-  `unit_price` decimal(12,2) NOT NULL,
-  `subtotal` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `discount_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `discount_pct` decimal(5,2) NOT NULL DEFAULT '0.00',
-  `taxable_base` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `tax_rate` decimal(5,2) NOT NULL DEFAULT '0.00',
-  `tax_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `total` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `order_details_order_id_index` (`order_id`),
-  KEY `order_details_product_id_index` (`product_id`),
-  CONSTRAINT `order_details_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `order_details_product_id_foreign` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT
+    -- Metadatos
+    fecha_adquisicion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultima_compra DATETIME NULL,
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+    notas TEXT NULL,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_clientes_uuid (uuid),
+    UNIQUE KEY uq_clientes_email (email),
+    KEY idx_clientes_segmento (segmento),
+    KEY idx_clientes_pais (pais),
+    KEY idx_clientes_activo (activo),
+    KEY idx_clientes_fecha_adquisicion (fecha_adquisicion)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `orden_encabezado` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `code` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'quotation',
-  `status` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
-  `notes` text COLLATE utf8mb4_unicode_ci,
-  `customer_id` bigint unsigned NOT NULL,
-  `subtotal` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `discount_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `discount_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `discount_pct` decimal(5,2) NOT NULL DEFAULT '0.00',
-  `taxable_base` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `tax_rate` decimal(5,2) NOT NULL DEFAULT '0.00',
-  `tax_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `total` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `payment_method` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `payment_date` datetime DEFAULT NULL,
-  `payment_reference` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  `deleted_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `orders_code_unique` (`code`),
-  KEY `orders_customer_id_index` (`customer_id`),
-  KEY `orders_status_index` (`status`),
-  KEY `orders_created_at_index` (`created_at`),
-  KEY `orders_payment_date_index` (`payment_date`),
-  CONSTRAINT `orders_customer_id_foreign` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE RESTRICT
+-- ============================================================================
+-- DIMENSIÓN: PRODUCTOS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS productos (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    nombre VARCHAR(255) NOT NULL,
+    sku VARCHAR(50) NOT NULL,
+    descripcion TEXT NULL,
+
+    -- Categorización
+    categoria VARCHAR(100) NOT NULL,
+    subcategoria VARCHAR(100) NULL,
+    marca VARCHAR(100) NULL,
+
+    -- Precios
+    precio_lista DECIMAL(10,2) NOT NULL,
+    precio_costo DECIMAL(10,2) NULL,
+
+    -- Stock
+    stock_actual INT NOT NULL DEFAULT 0,
+    stock_minimo INT NOT NULL DEFAULT 10,
+
+    -- Propiedades
+    peso_kg DECIMAL(8,2) NULL,
+    volumen_m3 DECIMAL(8,3) NULL,
+    es_digital TINYINT(1) NOT NULL DEFAULT 0,
+
+    -- Ciclo de vida del producto
+    fecha_lanzamiento DATE NULL,
+    fecha_descontinuacion DATE NULL,
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_productos_uuid (uuid),
+    UNIQUE KEY uq_productos_sku (sku),
+    KEY idx_productos_categoria (categoria),
+    KEY idx_productos_activo (activo),
+    KEY idx_productos_marca (marca)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `productos` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `slug` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sku` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `featured` tinyint(1) NOT NULL DEFAULT '0',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `summary` text COLLATE utf8mb4_unicode_ci,
-  `description` text COLLATE utf8mb4_unicode_ci,
-  `specs` text COLLATE utf8mb4_unicode_ci,
-  `stock` bigint unsigned NOT NULL DEFAULT '0',
-  `stock_min` bigint unsigned NOT NULL DEFAULT '0',
-  `stock_max` bigint unsigned NOT NULL DEFAULT '0',
-  `price_current` double NOT NULL DEFAULT '0',
-  `price_previous` double NOT NULL DEFAULT '0',
-  `price_original` double NOT NULL DEFAULT '0',
-  `segment` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `family` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `type` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `model` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `unit` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `measure` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `notes` text COLLATE utf8mb4_unicode_ci,
-  `poster_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `hover_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `category_id` bigint unsigned DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `products_category_id_foreign` (`category_id`),
-  CONSTRAINT `products_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ============================================================================
+-- DIMENSIÓN: VENDEDORES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS vendedores (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    nombre VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NULL,
+    telefono VARCHAR(20) NULL,
 
+    -- Organización
+    equipo VARCHAR(100) NULL,
+    territorio VARCHAR(100) NULL,
+    gerente_id BIGINT UNSIGNED NULL,
 
+    -- Performance
+    tasa_comision DECIMAL(5,2) NOT NULL DEFAULT 0,
+    cuota_mensual DECIMAL(15,2) NULL,
 
-/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
-/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
-/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
+    -- Estatus
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+    fecha_contratacion DATE NULL,
+    fecha_baja DATE NULL,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_vendedores_uuid (uuid),
+    UNIQUE KEY uq_vendedores_email (email),
+    KEY idx_vendedores_equipo (equipo),
+    KEY idx_vendedores_territorio (territorio),
+    KEY idx_vendedores_activo (activo),
+    KEY idx_vendedores_gerente_id (gerente_id),
+    CONSTRAINT fk_vendedores_gerente FOREIGN KEY (gerente_id)
+        REFERENCES vendedores (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- HECHO: ÓRDENES DE VENTAS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS orden_encabezado (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+
+    -- Foreign Keys
+    cliente_id BIGINT UNSIGNED NOT NULL,
+    vendedor_id BIGINT UNSIGNED NULL,
+
+    -- Fechas clave
+    fecha_orden DATETIME NOT NULL,
+    fecha_entrega_prometida DATE NULL,
+    fecha_entrega_real DATE NULL,
+
+    -- Montos
+    subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+    monto_descuento DECIMAL(15,2) NOT NULL DEFAULT 0,
+    porcentaje_descuento DECIMAL(5,2) NOT NULL DEFAULT 0,
+    monto_impuesto DECIMAL(15,2) NOT NULL DEFAULT 0,
+    costo_envio DECIMAL(15,2) NOT NULL DEFAULT 0,
+    monto_total DECIMAL(15,2) NOT NULL DEFAULT 0,
+
+    -- Información de pago
+    metodo_pago VARCHAR(50) NULL,
+        -- Valores: tarjeta_credito, transferencia_bancaria, efectivo, cheque, otro
+    estado_pago VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        -- Valores: pendiente, parcial, pagado, vencido, reembolsado
+    fecha_pago DATETIME NULL,
+
+    -- Estado de la orden
+    estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        -- Valores: pendiente, confirmado, procesando, enviado, entregado, cancelado, devuelto
+
+    -- Notas
+    notas TEXT NULL,
+    notas_internas TEXT NULL,
+
+    -- Auditoría
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    creado_por VARCHAR(100) NULL,
+
+    UNIQUE KEY uq_orden_encabezado_uuid (uuid),
+    KEY idx_orden_encabezado_cliente_id (cliente_id),
+    KEY idx_orden_encabezado_vendedor_id (vendedor_id),
+    KEY idx_orden_encabezado_fecha_orden (fecha_orden),
+    KEY idx_orden_encabezado_estado (estado),
+    KEY idx_orden_encabezado_estado_pago (estado_pago),
+    KEY idx_orden_encabezado_creado_en (creado_en),
+    CONSTRAINT fk_orden_encabezado_cliente FOREIGN KEY (cliente_id) REFERENCES clientes (id),
+    CONSTRAINT fk_orden_encabezado_vendedor FOREIGN KEY (vendedor_id) REFERENCES vendedores (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- DETALLE: ÍTEMS DE ÓRDENES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS orden_detalles (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    orden_id BIGINT UNSIGNED NOT NULL,
+    producto_id BIGINT UNSIGNED NOT NULL,
+
+    -- Cantidad y precio
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    porcentaje_descuento DECIMAL(5,2) NOT NULL DEFAULT 0,
+    total_linea DECIMAL(15,2) GENERATED ALWAYS AS
+        (cantidad * precio_unitario * (1 - porcentaje_descuento / 100)) STORED,
+
+    -- Control de inventario
+    ubicacion_almacen VARCHAR(100) NULL,
+    completado TINYINT(1) NOT NULL DEFAULT 0,
+
+    -- Devoluciones
+    cantidad_devuelta INT NOT NULL DEFAULT 0,
+    motivo_devolucion VARCHAR(255) NULL,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_orden_detalles_cantidad CHECK (cantidad > 0),
+    KEY idx_orden_detalles_orden_id (orden_id),
+    KEY idx_orden_detalles_producto_id (producto_id),
+    KEY idx_orden_detalles_completado (completado),
+    CONSTRAINT fk_orden_detalles_orden FOREIGN KEY (orden_id) REFERENCES orden_encabezado (id) ON DELETE CASCADE,
+    CONSTRAINT fk_orden_detalles_producto FOREIGN KEY (producto_id) REFERENCES productos (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- TRANSACCIONES: PAGOS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS pagos (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    orden_id BIGINT UNSIGNED NOT NULL,
+
+    -- Monto
+    monto DECIMAL(15,2) NOT NULL,
+    fecha_pago DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- Método
+    metodo_pago VARCHAR(50) NOT NULL,
+    numero_referencia VARCHAR(100) NULL,
+
+    -- Estado
+    estado VARCHAR(50) NOT NULL DEFAULT 'completado',
+        -- Valores: pendiente, completado, fallido, reembolsado
+
+    notas TEXT NULL,
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_pagos_uuid (uuid),
+    KEY idx_pagos_orden_id (orden_id),
+    KEY idx_pagos_fecha_pago (fecha_pago),
+    KEY idx_pagos_estado (estado),
+    CONSTRAINT fk_pagos_orden FOREIGN KEY (orden_id) REFERENCES orden_encabezado (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- DEVOLUCIONES / REEMBOLSOS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS devoluciones (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    orden_id BIGINT UNSIGNED NOT NULL,
+
+    -- Información
+    fecha_devolucion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivo VARCHAR(255) NOT NULL,
+    descripcion TEXT NULL,
+
+    -- Monto
+    monto_reembolso DECIMAL(15,2) NOT NULL,
+    fecha_reembolso DATETIME NULL,
+
+    -- Estado
+    estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+        -- Valores: pendiente, aprobado, rechazado, reembolsado, reembolso_parcial
+
+    aprobado_por VARCHAR(100) NULL,
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_devoluciones_uuid (uuid),
+    KEY idx_devoluciones_orden_id (orden_id),
+    KEY idx_devoluciones_fecha_devolucion (fecha_devolucion),
+    KEY idx_devoluciones_estado (estado),
+    CONSTRAINT fk_devoluciones_orden FOREIGN KEY (orden_id) REFERENCES orden_encabezado (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- INTERACCIONES CON CLIENTES (CRM)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS interacciones_clientes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    cliente_id BIGINT UNSIGNED NOT NULL,
+    vendedor_id BIGINT UNSIGNED NULL,
+
+    -- Tipo de interacción
+    tipo_interaccion VARCHAR(50) NOT NULL,
+        -- Valores: llamada, email, reunion, demo, soporte, seguimiento
+
+    -- Contenido
+    asunto VARCHAR(255) NULL,
+    notas TEXT NULL,
+
+    -- Resultado
+    resultado VARCHAR(100) NULL,
+        -- Valores: interesado, no_interesado, demo_programada, etc.
+    fecha_proximo_seguimiento DATE NULL,
+
+    -- Metadatos
+    fecha_interaccion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    duracion_minutos INT NULL,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_interacciones_clientes_uuid (uuid),
+    KEY idx_interacciones_clientes_cliente_id (cliente_id),
+    KEY idx_interacciones_clientes_fecha (fecha_interaccion),
+    KEY idx_interacciones_clientes_vendedor_id (vendedor_id),
+    CONSTRAINT fk_interacciones_cliente FOREIGN KEY (cliente_id) REFERENCES clientes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_interacciones_vendedor FOREIGN KEY (vendedor_id) REFERENCES vendedores (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- CAMPAÑAS DE MARKETING
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS campanas (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL DEFAULT (UUID()),
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT NULL,
+
+    -- Tipo y canal
+    tipo_campana VARCHAR(100) NULL,
+        -- Valores: email, webinar, feria, promocion, estacional
+    canal VARCHAR(50) NULL,
+        -- Valores: email, redes_sociales, correo_directo, eventos, referido, organico
+
+    -- Período
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE NULL,
+
+    -- Presupuesto
+    presupuesto DECIMAL(15,2) NULL,
+    gasto_real DECIMAL(15,2) NOT NULL DEFAULT 0,
+
+    -- Performance
+    impresiones INT NOT NULL DEFAULT 0,
+    clics INT NOT NULL DEFAULT 0,
+    conversiones INT NOT NULL DEFAULT 0,
+    ingresos_generados DECIMAL(15,2) NOT NULL DEFAULT 0,
+
+    estado VARCHAR(50) NOT NULL DEFAULT 'activa',
+        -- Valores: planificada, activa, completada, cancelada
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_campanas_uuid (uuid),
+    KEY idx_campanas_fecha_inicio (fecha_inicio),
+    KEY idx_campanas_estado (estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- RELACIÓN: CLIENTES - CAMPAÑAS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS campanas_clientes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    campana_id BIGINT UNSIGNED NOT NULL,
+    cliente_id BIGINT UNSIGNED NOT NULL,
+
+    -- Engagement
+    fecha_contacto DATETIME NULL,
+    abierto TINYINT(1) NOT NULL DEFAULT 0,
+    hizo_clic TINYINT(1) NOT NULL DEFAULT 0,
+    convirtio TINYINT(1) NOT NULL DEFAULT 0,
+    fecha_conversion DATETIME NULL,
+
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_campana_cliente (campana_id, cliente_id),
+    KEY idx_campanas_clientes_campana_id (campana_id),
+    KEY idx_campanas_clientes_cliente_id (cliente_id),
+    CONSTRAINT fk_campanas_clientes_campana FOREIGN KEY (campana_id) REFERENCES campanas (id) ON DELETE CASCADE,
+    CONSTRAINT fk_campanas_clientes_cliente FOREIGN KEY (cliente_id) REFERENCES clientes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- TABLA DE AUDITORÍA / CONTROL DE CARGAS
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS cargas_datos (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    fecha_carga DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tipo_carga VARCHAR(100) NULL,
+        -- Valores: inicial, incremental, refresco, prueba
+    registros_afectados INT NULL,
+    estado VARCHAR(50) NULL,
+    notas TEXT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- TRIGGERS PARA MANTENER INTEGRIDAD DE DATOS
+-- ============================================================================
+DELIMITER //
+
+-- Actualizar total de la orden cuando se agregan/modifican/eliminan ítems
+CREATE TRIGGER trg_orden_detalles_ai_total
+AFTER INSERT ON orden_detalles
+FOR EACH ROW
+BEGIN
+    UPDATE orden_encabezado
+    SET monto_total = COALESCE(
+            (SELECT SUM(total_linea) FROM orden_detalles WHERE orden_id = NEW.orden_id), 0
+        ) + COALESCE(monto_impuesto, 0) + COALESCE(costo_envio, 0) - COALESCE(monto_descuento, 0),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.orden_id;
+END//
+
+CREATE TRIGGER trg_orden_detalles_au_total
+AFTER UPDATE ON orden_detalles
+FOR EACH ROW
+BEGIN
+    UPDATE orden_encabezado
+    SET monto_total = COALESCE(
+            (SELECT SUM(total_linea) FROM orden_detalles WHERE orden_id = NEW.orden_id), 0
+        ) + COALESCE(monto_impuesto, 0) + COALESCE(costo_envio, 0) - COALESCE(monto_descuento, 0),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.orden_id;
+END//
+
+CREATE TRIGGER trg_orden_detalles_ad_total
+AFTER DELETE ON orden_detalles
+FOR EACH ROW
+BEGIN
+    UPDATE orden_encabezado
+    SET monto_total = COALESCE(
+            (SELECT SUM(total_linea) FROM orden_detalles WHERE orden_id = OLD.orden_id), 0
+        ) + COALESCE(monto_impuesto, 0) + COALESCE(costo_envio, 0) - COALESCE(monto_descuento, 0),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = OLD.orden_id;
+END//
+
+-- Actualizar valor de vida del cliente al insertar o modificar una orden
+CREATE TRIGGER trg_orden_encabezado_ai_valor_vida
+AFTER INSERT ON orden_encabezado
+FOR EACH ROW
+BEGIN
+    UPDATE clientes
+    SET valor_vida_total = COALESCE(
+            (SELECT SUM(monto_total) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado <> 'cancelado'), 0
+        ),
+        fecha_ultima_compra = COALESCE(
+            (SELECT MAX(fecha_orden) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado <> 'cancelado'),
+            fecha_ultima_compra
+        ),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.cliente_id;
+END//
+
+CREATE TRIGGER trg_orden_encabezado_au_valor_vida
+AFTER UPDATE ON orden_encabezado
+FOR EACH ROW
+BEGIN
+    UPDATE clientes
+    SET valor_vida_total = COALESCE(
+            (SELECT SUM(monto_total) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado <> 'cancelado'), 0
+        ),
+        fecha_ultima_compra = COALESCE(
+            (SELECT MAX(fecha_orden) FROM orden_encabezado WHERE cliente_id = NEW.cliente_id AND estado <> 'cancelado'),
+            fecha_ultima_compra
+        ),
+        actualizado_en = CURRENT_TIMESTAMP
+    WHERE id = NEW.cliente_id;
+END//
+
+DELIMITER ;
+
+-- ============================================================================
+-- PROCEDIMIENTO: Registrar en cargas_datos
+-- ============================================================================
+DELIMITER //
+
+CREATE PROCEDURE sp_registrar_carga_datos(
+    IN p_tipo_carga VARCHAR(100),
+    IN p_registros_afectados INT,
+    IN p_estado VARCHAR(50),
+    IN p_notas TEXT
+)
+BEGIN
+    INSERT INTO cargas_datos (tipo_carga, registros_afectados, estado, notas)
+    VALUES (p_tipo_carga, p_registros_afectados, COALESCE(p_estado, 'completado'), p_notas);
+
+    SELECT LAST_INSERT_ID() AS carga_id;
+END//
+
+DELIMITER ;
+
+-- ============================================================================
+-- FIN DEL SCHEMA
+-- ============================================================================

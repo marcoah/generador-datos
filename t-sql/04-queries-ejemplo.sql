@@ -17,7 +17,7 @@ SELECT
     SUM(CASE WHEN o.estado_pago IN ('pendiente','vencido') THEN o.monto_total ELSE 0 END)   AS monto_impago,
     COUNT(CASE WHEN o.estado_pago = 'pagado'   THEN 1 END)                                  AS ordenes_pagadas,
     COUNT(CASE WHEN o.estado      = 'cancelado' THEN 1 END)                                 AS ordenes_canceladas
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)
     = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1);
 
@@ -27,7 +27,7 @@ WITH mes_actual AS (
         SUM(monto_total)            AS ingresos,
         COUNT(*)                    AS ordenes,
         COUNT(DISTINCT cliente_id)  AS clientes
-    FROM dbo.ordenes
+    FROM dbo.orden_encabezado
     WHERE DATEFROMPARTS(YEAR(fecha_orden), MONTH(fecha_orden), 1)
         = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
 ),
@@ -36,7 +36,7 @@ mes_anterior AS (
         SUM(monto_total)            AS ingresos,
         COUNT(*)                    AS ordenes,
         COUNT(DISTINCT cliente_id)  AS clientes
-    FROM dbo.ordenes
+    FROM dbo.orden_encabezado
     WHERE DATEFROMPARTS(YEAR(fecha_orden), MONTH(fecha_orden), 1)
         = DATEFROMPARTS(YEAR(DATEADD(MONTH,-1,GETDATE())), MONTH(DATEADD(MONTH,-1,GETDATE())), 1)
 )
@@ -59,7 +59,7 @@ SELECT
     AVG(o.monto_total)                                              AS valor_promedio_orden,
     COUNT(CASE WHEN o.estado     = 'entregado' THEN 1 END)         AS entregadas,
     COUNT(CASE WHEN o.estado_pago = 'pagado'   THEN 1 END)         AS ordenes_pagadas
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE o.fecha_orden >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))
 GROUP BY CAST(o.fecha_orden AS DATE), DATENAME(WEEKDAY, o.fecha_orden)
 ORDER BY CAST(o.fecha_orden AS DATE) DESC;
@@ -81,7 +81,7 @@ SELECT TOP 10
     COUNT(DISTINCT o.cliente_id)                                                        AS clientes_unicos,
     MAX(o.fecha_orden)                                                                  AS fecha_ultima_venta
 FROM dbo.vendedores v
-LEFT JOIN dbo.ordenes o
+LEFT JOIN dbo.orden_encabezado o
     ON v.id = o.vendedor_id
     AND DATEFROMPARTS(YEAR(o.fecha_orden), MONTH(o.fecha_orden), 1)
       = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
@@ -94,7 +94,7 @@ ORDER BY ventas_totales DESC;
 WITH ytd_actual AS (
     SELECT v.id, v.nombre, SUM(o.monto_total) AS ventas_ytd
     FROM dbo.vendedores v
-    LEFT JOIN dbo.ordenes o
+    LEFT JOIN dbo.orden_encabezado o
         ON v.id = o.vendedor_id
         AND YEAR(o.fecha_orden) = YEAR(GETDATE())
         AND o.estado <> 'cancelado'
@@ -104,7 +104,7 @@ WITH ytd_actual AS (
 ytd_anterior AS (
     SELECT v.id, v.nombre, SUM(o.monto_total) AS ventas_ytd
     FROM dbo.vendedores v
-    LEFT JOIN dbo.ordenes o
+    LEFT JOIN dbo.orden_encabezado o
         ON v.id = o.vendedor_id
         AND YEAR(o.fecha_orden) = YEAR(GETDATE()) - 1
         AND o.estado <> 'cancelado'
@@ -138,7 +138,7 @@ SELECT
     COUNT(DISTINCT o.cliente_id)                                                                AS clientes_con_ordenes,
     ROUND(100.0 * COUNT(DISTINCT o.cliente_id) / NULLIF(COUNT(DISTINCT c.id), 0), 2)          AS pct_conversion
 FROM dbo.clientes c
-LEFT JOIN dbo.ordenes o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
+LEFT JOIN dbo.orden_encabezado o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
 WHERE c.activo = 1
 GROUP BY c.segmento
 ORDER BY ingresos_totales DESC;
@@ -158,7 +158,7 @@ SELECT TOP 20
     COUNT(CASE WHEN o.estado_pago = 'pagado'                     THEN 1 END)   AS ordenes_pagadas,
     COUNT(CASE WHEN o.estado_pago IN ('pendiente','vencido')     THEN 1 END)   AS ordenes_sin_pago
 FROM dbo.clientes c
-LEFT JOIN dbo.ordenes o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
+LEFT JOIN dbo.orden_encabezado o ON c.id = o.cliente_id AND o.estado <> 'cancelado'
 WHERE c.activo = 1
 GROUP BY c.id, c.nombre, c.segmento, c.industria, c.pais
 ORDER BY valor_vida DESC;
@@ -174,7 +174,7 @@ SELECT
     COUNT(DISTINCT o.id)                                    AS ordenes_totales,
     SUM(o.monto_total)                                      AS total_gastado
 FROM dbo.clientes c
-LEFT JOIN dbo.ordenes o ON c.id = o.cliente_id
+LEFT JOIN dbo.orden_encabezado o ON c.id = o.cliente_id
 WHERE c.activo = 1
 GROUP BY c.id, c.nombre, c.segmento, c.valor_vida_total
 HAVING MAX(o.fecha_orden) < DATEADD(DAY, -90, GETDATE())
@@ -192,7 +192,7 @@ SELECT
     SUM(o.monto_total)      AS valor_compra_inicial,
     MAX(o.fecha_orden)      AS fecha_primera_orden
 FROM dbo.clientes c
-LEFT JOIN dbo.ordenes o ON c.id = o.cliente_id
+LEFT JOIN dbo.orden_encabezado o ON c.id = o.cliente_id
 WHERE c.fecha_adquisicion >= DATEADD(DAY, -30, GETDATE())
 GROUP BY c.id, c.nombre, c.segmento, c.industria, c.tamaño_empresa, c.fecha_adquisicion
 ORDER BY c.fecha_adquisicion DESC;
@@ -219,8 +219,8 @@ SELECT TOP 20
     ROUND(SUM(io.total_linea) - SUM(CAST(io.cantidad AS DECIMAL(15,2)) * p.precio_costo), 2) AS ganancia_bruta,
     SUM(io.cantidad_devuelta)                                                            AS total_devuelto
 FROM dbo.productos p
-LEFT JOIN dbo.items_orden io ON p.id = io.producto_id
-LEFT JOIN dbo.ordenes     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
+LEFT JOIN dbo.orden_detalles io ON p.id = io.producto_id
+LEFT JOIN dbo.orden_encabezado     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
 WHERE p.activo = 1
 GROUP BY p.id, p.nombre, p.sku, p.categoria, p.marca, p.precio_lista, p.precio_costo
 ORDER BY ingresos_totales DESC;
@@ -242,7 +242,7 @@ SELECT
         ELSE 'Sin ventas'
     END                                             AS razon_estado
 FROM dbo.productos p
-LEFT JOIN dbo.items_orden io ON p.id = io.producto_id
+LEFT JOIN dbo.orden_detalles io ON p.id = io.producto_id
 WHERE p.activo = 1 AND io.id IS NULL
 ORDER BY p.fecha_lanzamiento DESC;
 
@@ -259,8 +259,8 @@ SELECT
           / NULLIF(SUM(io.total_linea), 0), 2)                                                      AS margen_ganancia_pct,
     ROUND(100.0 * SUM(io.cantidad_devuelta) / NULLIF(SUM(io.cantidad), 0), 2)                      AS tasa_devolucion_pct
 FROM dbo.productos p
-LEFT JOIN dbo.items_orden io ON p.id = io.producto_id
-LEFT JOIN dbo.ordenes     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
+LEFT JOIN dbo.orden_detalles io ON p.id = io.producto_id
+LEFT JOIN dbo.orden_encabezado     o  ON io.orden_id = o.id AND o.estado <> 'cancelado'
 WHERE p.activo = 1
 GROUP BY p.categoria
 ORDER BY ingresos DESC;
@@ -276,7 +276,7 @@ SELECT
     SUM(o.monto_total)      AS monto_pendiente,
     AVG(o.monto_total)      AS monto_promedio_orden,
     MAX(o.fecha_orden)      AS orden_mas_reciente
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE o.estado <> 'cancelado'
   AND o.estado_pago IN ('pendiente','parcial','vencido')
 GROUP BY o.estado_pago
@@ -297,7 +297,7 @@ SELECT
         WHEN DATEDIFF(DAY, o.fecha_orden, GETDATE()) > 60  THEN 'Urgente'
         ELSE 'Seguimiento'
     END                                                     AS prioridad_cobranza
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 JOIN dbo.clientes c ON o.cliente_id = c.id
 WHERE o.fecha_orden < DATEADD(DAY, -60, GETDATE())
   AND o.estado_pago IN ('pendiente','parcial','vencido')
@@ -313,7 +313,7 @@ SELECT
     COUNT(CASE WHEN o.estado_pago = 'pagado'                THEN 1 END)                        AS pagos_exitosos,
     COUNT(CASE WHEN o.estado_pago IN ('pendiente','vencido') THEN 1 END)                       AS pagos_pendientes,
     ROUND(100.0 * COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) / NULLIF(COUNT(*),0), 2) AS tasa_exito_pct
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE o.estado <> 'cancelado'
 GROUP BY o.metodo_pago
 ORDER BY monto_total DESC;
@@ -357,7 +357,7 @@ SELECT
     SUM(io.cantidad_devuelta)                                                           AS total_devuelto,
     ROUND(100.0 * SUM(io.cantidad_devuelta) / NULLIF(SUM(io.cantidad), 0), 2)         AS tasa_devolucion_pct
 FROM dbo.productos p
-LEFT JOIN dbo.items_orden io ON p.id = io.producto_id
+LEFT JOIN dbo.orden_detalles io ON p.id = io.producto_id
 GROUP BY p.id, p.categoria, p.nombre, p.sku
 HAVING SUM(io.cantidad) >= 10 AND SUM(io.cantidad_devuelta) > 0
 ORDER BY tasa_devolucion_pct DESC;
@@ -404,8 +404,8 @@ SELECT
     ROUND(SUM(o.monto_total) - SUM(CAST(io.cantidad AS DECIMAL(15,2)) * p.precio_costo), 2) AS ganancia_bruta,
     COUNT(CASE WHEN o.estado = 'entregado' THEN 1 END)                     AS ordenes_entregadas,
     COUNT(CASE WHEN o.estado = 'cancelado' THEN 1 END)                     AS ordenes_canceladas
-FROM dbo.ordenes o
-LEFT JOIN dbo.items_orden io ON o.id = io.orden_id
+FROM dbo.orden_encabezado o
+LEFT JOIN dbo.orden_detalles io ON o.id = io.orden_id
 LEFT JOIN dbo.productos   p  ON io.producto_id = p.id
 WHERE o.fecha_orden >= DATEADD(MONTH, -12, GETDATE())
   AND o.estado <> 'cancelado'
@@ -431,7 +431,7 @@ SELECT
     COUNT(DISTINCT o.cliente_id)                                                                AS clientes_activos,
     COUNT(CASE WHEN o.estado = 'cancelado' THEN 1 END)                                         AS ordenes_canceladas,
     ROUND(100.0 * COUNT(CASE WHEN o.estado_pago = 'pagado' THEN 1 END) / NULLIF(COUNT(*),0), 2) AS pct_cobrado
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 WHERE o.fecha_orden >= DATEADD(DAY, -7, GETDATE());
 
 -- Query 23: Export para Power BI - Tabla de Hechos
@@ -452,10 +452,10 @@ SELECT
     io.producto_id,
     io.cantidad,
     io.total_linea
-FROM dbo.ordenes o
+FROM dbo.orden_encabezado o
 JOIN dbo.clientes c         ON o.cliente_id  = c.id
 LEFT JOIN dbo.vendedores v  ON o.vendedor_id = v.id
-LEFT JOIN dbo.items_orden io ON o.id         = io.orden_id
+LEFT JOIN dbo.orden_detalles io ON o.id         = io.orden_id
 WHERE o.fecha_orden >= DATEADD(MONTH, -12, GETDATE())
 ORDER BY o.fecha_orden DESC;
 
@@ -471,7 +471,7 @@ SELECT * FROM dbo.fn_calcular_churn(90)  ORDER BY tasa_churn_pct DESC;
 
 -- Análisis de cohortes
 SELECT * FROM dbo.fn_analisis_cohortes('ingresos')
-ORDER BY mes_cohorte DESC, meses_desde_primera_orden;
+ORDER BY mes_cohorte DESC, meses_transcurridos;
 
 -- ============================================================================
 -- FIN DE QUERIES EJEMPLO

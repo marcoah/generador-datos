@@ -31,8 +31,8 @@ DIMENSIONES (Contexto)
 └── vendedores
 
 HECHOS (Transacciones)
-├── ordenes
-├── items_orden
+├── orden_encabezado
+├── orden_detalles
 ├── pagos
 └── devoluciones
 
@@ -123,7 +123,7 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 ---
 
-### 📋 ORDENES (Tabla de Hechos Principal)
+### 📋 ORDEN_ENCABEZADO (Tabla de Hechos Principal)
 
 **Propósito:** Registro de todas las órdenes de ventas
 
@@ -154,14 +154,14 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 
 ---
 
-### 🔗 ITEMS_ORDEN
+### 🔗 ORDEN_DETALLES
 
 **Propósito:** Detalles de cada línea de una orden
 
 | Columna              | Tipo          | Descripción                                                 |
 | -------------------- | ------------- | ----------------------------------------------------------- |
 | id                   | BIGSERIAL     | PK                                                          |
-| orden_id             | BIGINT        | FK → ordenes (CASCADE)                                      |
+| orden_id             | BIGINT        | FK → orden_encabezado (CASCADE)                             |
 | producto_id          | BIGINT        | FK → productos                                              |
 | cantidad             | INT           | Cantidad pedida                                             |
 | precio_unitario      | NUMERIC(10,2) | Precio unitario al momento de la venta                      |
@@ -185,7 +185,7 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 | Columna           | Tipo          | Descripción                        |
 | ----------------- | ------------- | ---------------------------------- |
 | id                | BIGSERIAL     | PK                                 |
-| orden_id          | BIGINT        | FK → ordenes                       |
+| orden_id          | BIGINT        | FK → orden_encabezado              |
 | monto             | NUMERIC(15,2) | Monto pagado                       |
 | fecha_pago        | TIMESTAMP     | Fecha del pago                     |
 | metodo_pago       | VARCHAR(50)   | Método utilizado                   |
@@ -203,7 +203,7 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 | Columna          | Tipo          | Descripción                                    |
 | ---------------- | ------------- | ---------------------------------------------- |
 | id               | BIGSERIAL     | PK                                             |
-| orden_id         | BIGINT        | FK → ordenes                                   |
+| orden_id         | BIGINT        | FK → orden_encabezado                          |
 | fecha_devolucion | TIMESTAMP     | Fecha de solicitud                             |
 | motivo           | VARCHAR(255)  | Motivo (defectuoso, producto_incorrecto, etc.) |
 | monto_reembolso  | NUMERIC(15,2) | Monto a reembolsar                             |
@@ -265,7 +265,7 @@ margen_pct = (precio_lista - precio_costo) / precio_lista * 100
 ### Diagrama de Relaciones
 
 ```
-clientes ◄──────┬────► ordenes ──► items_orden ◄─── productos
+clientes ◄──────┬────► orden_encabezado ──► orden_detalles ◄─── productos
                 │        ▲
                 │        │
                 ├──────────► pagos
@@ -276,7 +276,7 @@ clientes ◄──────┬────► ordenes ──► items_orden �
                 │
                 └──────────► campanas_clientes ◄──── campanas
 
-vendedores ────────────────────────► ordenes
+vendedores ────────────────────────► orden_encabezado
                 ▲
                 │
                 └─ gerente_id (autorreferencia)
@@ -285,8 +285,8 @@ vendedores ───────────────────────
 ### Integridad Referencial
 
 - **ON DELETE RESTRICT:** clientes (no se eliminan si tienen órdenes)
-- **ON DELETE CASCADE:** items_orden (se eliminan si se borra la orden)
-- **ON DELETE SET NULL:** vendedor_id en ordenes (si se borra vendedor, queda NULL)
+- **ON DELETE CASCADE:** orden_detalles (se eliminan si se borra la orden)
+- **ON DELETE SET NULL:** vendedor_id en orden_encabezado (si se borra vendedor, queda NULL)
 
 ---
 
@@ -294,7 +294,7 @@ vendedores ───────────────────────
 
 ### Enumeraciones
 
-**ordenes.estado:**
+**orden_encabezado.estado:**
 
 ```
 pendiente    → Pendiente de confirmar
@@ -306,7 +306,7 @@ cancelado    → Cancelada
 devuelto     → Devuelta
 ```
 
-**ordenes.estado_pago:**
+**orden_encabezado.estado_pago:**
 
 ```
 pendiente    → Esperando pago
@@ -336,7 +336,7 @@ grande       → 500-5000 empleados
 corporacion  → Más de 5000 empleados
 ```
 
-**ordenes.metodo_pago:**
+**orden_encabezado.metodo_pago:**
 
 ```
 tarjeta_credito        → Tarjeta de crédito/débito
@@ -618,7 +618,7 @@ ORDER BY roi DESC;
 SELECT * FROM generar_todos_los_datos(500, 200, 50, 5000, 365);
 
 -- Opción B: Limpiar tablas específicas
-DELETE FROM ordenes;     -- Cascade elimina items_orden y relacionados
+DELETE FROM orden_encabezado;     -- Cascade elimina orden_detalles y relacionados
 DELETE FROM clientes;
 
 -- Opción C: Desactivar clientes (soft delete)
@@ -641,25 +641,25 @@ CREATE INDEX idx_productos_categoria ON productos(categoria);
 CREATE INDEX idx_vendedores_equipo ON vendedores(equipo);
 
 -- Hechos
-CREATE INDEX idx_ordenes_cliente_id ON ordenes(cliente_id);
-CREATE INDEX idx_ordenes_fecha_orden ON ordenes(fecha_orden);
-CREATE INDEX idx_ordenes_estado ON ordenes(estado);
-CREATE INDEX idx_items_orden_orden_id ON items_orden(orden_id);
+CREATE INDEX idx_orden_encabezado_cliente_id ON orden_encabezado(cliente_id);
+CREATE INDEX idx_orden_encabezado_fecha_orden ON orden_encabezado(fecha_orden);
+CREATE INDEX idx_orden_encabezado_estado ON orden_encabezado(estado);
+CREATE INDEX idx_orden_detalles_orden_id ON orden_detalles(orden_id);
 ```
 
 ### Índices Adicionales Recomendados para Analítica
 
 ```sql
 -- Filtros compuestos frecuentes en dashboards
-CREATE INDEX idx_ordenes_fecha_estado ON ordenes(fecha_orden, estado);
-CREATE INDEX idx_ordenes_estado_pago_fecha ON ordenes(estado_pago, fecha_orden);
+CREATE INDEX idx_orden_encabezado_fecha_estado ON orden_encabezado(fecha_orden, estado);
+CREATE INDEX idx_orden_encabezado_estado_pago_fecha ON orden_encabezado(estado_pago, fecha_orden);
 
 -- Mejoran queries de vistas
-CREATE INDEX idx_ordenes_cliente_fecha ON ordenes(cliente_id, fecha_orden);
-CREATE INDEX idx_items_orden_producto_completado ON items_orden(producto_id, completado);
+CREATE INDEX idx_orden_encabezado_cliente_fecha ON orden_encabezado(cliente_id, fecha_orden);
+CREATE INDEX idx_orden_detalles_producto_completado ON orden_detalles(producto_id, completado);
 
 -- Para agregaciones
-CREATE INDEX idx_items_orden_orden_total ON items_orden(orden_id, total_linea);
+CREATE INDEX idx_orden_detalles_orden_total ON orden_detalles(orden_id, total_linea);
 ```
 
 ### Mantenimiento
@@ -668,8 +668,8 @@ CREATE INDEX idx_items_orden_orden_total ON items_orden(orden_id, total_linea);
 -- Analizar tablas después de cargas masivas
 ANALYZE clientes;
 ANALYZE productos;
-ANALYZE ordenes;
-ANALYZE items_orden;
+ANALYZE orden_encabezado;
+ANALYZE orden_detalles;
 
 -- Ver tamaño de tablas
 SELECT schemaname, tablename,
@@ -687,15 +687,15 @@ VACUUM ANALYZE;
 ```sql
 -- Query rápida para KPIs del dashboard principal
 SELECT
-    (SELECT COUNT(*) FROM ordenes WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS ordenes_30d,
-    (SELECT SUM(monto_total) FROM ordenes WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS ingresos_30d,
-    (SELECT COUNT(DISTINCT cliente_id) FROM ordenes WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS clientes_30d,
-    (SELECT AVG(monto_total) FROM ordenes WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS promedio_30d;
+    (SELECT COUNT(*) FROM orden_encabezado WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS ordenes_30d,
+    (SELECT SUM(monto_total) FROM orden_encabezado WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS ingresos_30d,
+    (SELECT COUNT(DISTINCT cliente_id) FROM orden_encabezado WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS clientes_30d,
+    (SELECT AVG(monto_total) FROM orden_encabezado WHERE fecha_orden >= CURRENT_DATE - INTERVAL '30 days') AS promedio_30d;
 
 -- Cache con CTE (evita cálculos repetidos)
 WITH datos_mensuales AS (
     SELECT DATE_TRUNC('month', fecha_orden)::DATE AS mes, SUM(monto_total) AS ingresos
-    FROM ordenes
+    FROM orden_encabezado
     GROUP BY mes
 )
 SELECT * FROM datos_mensuales WHERE mes >= CURRENT_DATE - INTERVAL '12 months';

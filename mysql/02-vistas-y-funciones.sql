@@ -1,7 +1,16 @@
 -- ============================================================================
 -- VISTAS Y FUNCIONES ANALÍTICAS PARA DASHBOARDS
--- PostgreSQL 14+
+-- MySQL 8.0+
 -- ============================================================================
+-- NOTA: MySQL no permite DML (INSERT/UPDATE/DELETE) dentro de FUNCTIONs, y no
+-- soporta funciones de tabla ni vistas materializadas. Por eso:
+-- - Las funciones analíticas de PostgreSQL/T-SQL se implementan como
+--   PROCEDURES (se invocan con CALL en vez de SELECT * FROM ...).
+-- - Las vistas materializadas se implementan como tablas de caché +
+--   un procedimiento de refresco (mismo patrón que t-sql/02-vistas-y-funciones.sql).
+-- ============================================================================
+
+USE ventas_test;
 
 -- ============================================================================
 -- VISTAS: ANÁLISIS DE VENTAS
@@ -31,7 +40,7 @@ SELECT
     COUNT(CASE WHEN o.estado_pago = 'pendiente' THEN 1 END) AS ordenes_pago_pendiente
 
 FROM orden_encabezado o
-WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '2 years'
+WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 2 YEAR
 GROUP BY DATE(o.fecha_orden)
 ORDER BY fecha_venta DESC;
 
@@ -60,7 +69,7 @@ SELECT
 FROM orden_detalles io
 JOIN orden_encabezado o ON io.orden_id = o.id
 JOIN productos p ON io.producto_id = p.id
-WHERE o.estado != 'cancelado'
+WHERE o.estado <> 'cancelado'
 GROUP BY p.categoria, p.subcategoria
 ORDER BY ingresos_totales DESC;
 
@@ -91,14 +100,14 @@ SELECT
 
     -- Comparación con cuota (mes actual)
     SUM(CASE
-        WHEN DATE_TRUNC('month', o.fecha_orden) = DATE_TRUNC('month', CURRENT_DATE)
+        WHEN DATE_FORMAT(o.fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE, '%Y-%m')
         THEN o.monto_total
         ELSE 0
     END) AS ventas_mes_actual,
 
     ROUND(
         100.0 * SUM(CASE
-            WHEN DATE_TRUNC('month', o.fecha_orden) = DATE_TRUNC('month', CURRENT_DATE)
+            WHEN DATE_FORMAT(o.fecha_orden, '%Y-%m') = DATE_FORMAT(CURRENT_DATE, '%Y-%m')
             THEN o.monto_total
             ELSE 0
         END) / NULLIF(v.cuota_mensual, 0),
@@ -106,11 +115,11 @@ SELECT
     ) AS porcentaje_cumplimiento_cuota,
 
     MAX(o.fecha_orden) AS fecha_ultima_venta,
-    CURRENT_DATE - MAX(o.fecha_orden)::DATE AS dias_desde_ultima_venta
+    DATEDIFF(CURRENT_DATE, MAX(o.fecha_orden)) AS dias_desde_ultima_venta
 
 FROM vendedores v
-LEFT JOIN orden_encabezado o ON v.id = o.vendedor_id AND o.estado != 'cancelado'
-WHERE v.activo = TRUE
+LEFT JOIN orden_encabezado o ON v.id = o.vendedor_id AND o.estado <> 'cancelado'
+WHERE v.activo = 1
 GROUP BY v.id, v.uuid, v.nombre, v.equipo, v.territorio, v.cuota_mensual, v.tasa_comision
 ORDER BY ventas_totales DESC;
 
@@ -122,26 +131,26 @@ SELECT
     c.nombre,
     c.segmento,
     c.industria,
-    c.tamaño_empresa,
+    c.tamano_empresa,
     c.pais,
 
     COUNT(DISTINCT o.id) AS total_ordenes,
     SUM(o.monto_total) AS valor_vida,
     AVG(o.monto_total) AS valor_promedio_orden,
     MAX(o.fecha_orden) AS fecha_ultima_compra,
-    CURRENT_DATE - MAX(o.fecha_orden)::DATE AS dias_desde_ultima_compra,
+    DATEDIFF(CURRENT_DATE, MAX(o.fecha_orden)) AS dias_desde_ultima_compra,
 
-    DATE(MAX(o.fecha_orden)) - DATE(MIN(o.fecha_orden)) AS dias_como_cliente,
+    DATEDIFF(MAX(o.fecha_orden), MIN(o.fecha_orden)) AS dias_como_cliente,
     ROUND(
-        COUNT(DISTINCT o.id)::NUMERIC /
-        GREATEST(1, (CURRENT_DATE - DATE(MIN(o.fecha_orden))) / 30),
+        COUNT(DISTINCT o.id) /
+        GREATEST(1, DATEDIFF(CURRENT_DATE, MIN(o.fecha_orden)) / 30),
         2
     ) AS ordenes_por_mes,
 
-    COUNT(DISTINCT DATE_TRUNC('month', o.fecha_orden)) AS meses_activos,
+    COUNT(DISTINCT DATE_FORMAT(o.fecha_orden, '%Y-%m')) AS meses_activos,
 
     COUNT(CASE WHEN o.estado = 'cancelado' THEN 1 END) AS ordenes_canceladas,
-    COUNT(CASE WHEN o.estado_pago != 'pagado' THEN 1 END) AS ordenes_sin_pago,
+    COUNT(CASE WHEN o.estado_pago <> 'pagado' THEN 1 END) AS ordenes_sin_pago,
 
     COUNT(DISTINCT ic.id) AS total_interacciones,
     MAX(ic.fecha_interaccion) AS fecha_ultima_interaccion
@@ -149,8 +158,8 @@ SELECT
 FROM clientes c
 LEFT JOIN orden_encabezado o ON c.id = o.cliente_id
 LEFT JOIN interacciones_clientes ic ON c.id = ic.cliente_id
-WHERE c.activo = TRUE
-GROUP BY c.id, c.uuid, c.nombre, c.segmento, c.industria, c.tamaño_empresa, c.pais
+WHERE c.activo = 1
+GROUP BY c.id, c.uuid, c.nombre, c.segmento, c.industria, c.tamano_empresa, c.pais
 ORDER BY valor_vida DESC;
 
 -- Vista: Análisis de devoluciones
@@ -158,7 +167,7 @@ CREATE OR REPLACE VIEW v_analisis_devoluciones AS
 WITH devoluciones_por_dia AS (
     SELECT d.*, DATE(d.fecha_devolucion) AS dia_devolucion
     FROM devoluciones d
-    WHERE d.fecha_devolucion >= CURRENT_DATE - INTERVAL '1 year'
+    WHERE d.fecha_devolucion >= CURRENT_DATE - INTERVAL 1 YEAR
 )
 SELECT
     d.dia_devolucion AS fecha_devolucion,
@@ -204,16 +213,16 @@ SELECT
 
     -- Análisis de atrasos
     COUNT(DISTINCT CASE
-        WHEN (o.fecha_orden + INTERVAL '30 days') < p.fecha_pago THEN o.id
+        WHEN DATE_ADD(o.fecha_orden, INTERVAL 30 DAY) < p.fecha_pago THEN o.id
     END) AS pagos_atrasados_30d,
 
     COUNT(DISTINCT CASE
-        WHEN (o.fecha_orden + INTERVAL '60 days') < p.fecha_pago THEN o.id
+        WHEN DATE_ADD(o.fecha_orden, INTERVAL 60 DAY) < p.fecha_pago THEN o.id
     END) AS pagos_atrasados_60d
 
 FROM pagos p
 JOIN orden_encabezado o ON p.orden_id = o.id
-WHERE p.fecha_pago >= CURRENT_DATE - INTERVAL '1 year'
+WHERE p.fecha_pago >= CURRENT_DATE - INTERVAL 1 YEAR
 GROUP BY DATE(p.fecha_pago), p.metodo_pago
 ORDER BY fecha_pago DESC;
 
@@ -254,121 +263,136 @@ SELECT
 
     COUNT(DISTINCT cc.cliente_id) AS clientes_objetivo,
     COUNT(DISTINCT CASE WHEN cc.fecha_contacto IS NOT NULL THEN cc.cliente_id END) AS clientes_contactados,
-    COUNT(DISTINCT CASE WHEN cc.convirtio = TRUE THEN cc.cliente_id END) AS clientes_convertidos
+    COUNT(DISTINCT CASE WHEN cc.convirtio = 1 THEN cc.cliente_id END) AS clientes_convertidos
 
 FROM campanas c
 LEFT JOIN campanas_clientes cc ON c.id = cc.campana_id
-WHERE c.fecha_inicio >= CURRENT_DATE - INTERVAL '2 years'
+WHERE c.fecha_inicio >= CURRENT_DATE - INTERVAL 2 YEAR
 GROUP BY c.id, c.uuid, c.nombre, c.tipo_campana, c.canal, c.fecha_inicio, c.fecha_fin,
          c.presupuesto, c.gasto_real, c.impresiones, c.clics, c.conversiones, c.ingresos_generados
 ORDER BY c.fecha_inicio DESC;
 
 -- ============================================================================
--- VISTAS MATERIALIZADAS (para mejor performance)
+-- TABLAS DE CACHÉ (equivalente a MATERIALIZED VIEW en PostgreSQL)
+-- MySQL no soporta vistas materializadas: se usan tablas + procedimiento de refresco.
 -- ============================================================================
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_tendencia_ventas_mensual AS
-SELECT
-    DATE_TRUNC('month', o.fecha_orden)::DATE AS mes,
-    EXTRACT(YEAR FROM o.fecha_orden)::INT AS anio,
-    EXTRACT(MONTH FROM o.fecha_orden)::INT AS numero_mes,
+CREATE TABLE IF NOT EXISTS mv_tendencia_ventas_mensual (
+    mes DATE NOT NULL PRIMARY KEY,
+    anio INT NOT NULL,
+    numero_mes INT NOT NULL,
+    ordenes INT NOT NULL,
+    clientes INT NOT NULL,
+    ingresos DECIMAL(15,2) NOT NULL,
+    valor_promedio_orden DECIMAL(15,2) NOT NULL,
+    ingresos_entregados DECIMAL(15,2) NOT NULL,
+    ingresos_cancelados DECIMAL(15,2) NOT NULL,
+    ganancia_bruta DECIMAL(15,2) NOT NULL,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    COUNT(DISTINCT o.id) AS ordenes,
-    COUNT(DISTINCT o.cliente_id) AS clientes,
-    SUM(o.monto_total) AS ingresos,
-    AVG(o.monto_total) AS valor_promedio_orden,
+CREATE TABLE IF NOT EXISTS mv_top_productos_por_categoria (
+    categoria VARCHAR(100) NOT NULL,
+    id BIGINT UNSIGNED NOT NULL,
+    uuid CHAR(36) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
+    sku VARCHAR(50) NOT NULL,
+    veces_pedido INT NOT NULL,
+    cantidad_total_vendida INT NOT NULL,
+    ingresos_totales DECIMAL(15,2) NOT NULL,
+    ranking_categoria INT NOT NULL,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (categoria, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    SUM(CASE WHEN o.estado = 'entregado' THEN o.monto_total ELSE 0 END) AS ingresos_entregados,
-    SUM(CASE WHEN o.estado = 'cancelado' THEN o.monto_total ELSE 0 END) AS ingresos_cancelados,
+DELIMITER //
 
-    SUM(o.monto_total) - SUM(COALESCE(io.cantidad * p.precio_costo, 0)) AS ganancia_bruta
-
-FROM orden_encabezado o
-LEFT JOIN orden_detalles io ON o.id = io.orden_id
-LEFT JOIN productos p ON io.producto_id = p.id
-WHERE o.estado != 'cancelado'
-GROUP BY DATE_TRUNC('month', o.fecha_orden), EXTRACT(YEAR FROM o.fecha_orden), EXTRACT(MONTH FROM o.fecha_orden)
-ORDER BY mes DESC;
-
-CREATE UNIQUE INDEX idx_mv_tendencia_ventas_mes ON mv_tendencia_ventas_mensual(mes);
-
--- Vista materializada: Top productos por categoría
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_top_productos_por_categoria AS
-SELECT
-    p.categoria,
-    p.id,
-    p.uuid,
-    p.nombre,
-    p.sku,
-
-    COUNT(DISTINCT io.orden_id) AS veces_pedido,
-    SUM(io.cantidad) AS cantidad_total_vendida,
-    SUM(io.total_linea) AS ingresos_totales,
-
-    ROW_NUMBER() OVER (PARTITION BY p.categoria ORDER BY SUM(io.total_linea) DESC) AS ranking_categoria
-
-FROM productos p
-LEFT JOIN orden_detalles io ON p.id = io.producto_id
-LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado != 'cancelado'
-WHERE p.activo = TRUE
-GROUP BY p.categoria, p.id, p.uuid, p.nombre, p.sku
-ORDER BY p.categoria, ingresos_totales DESC;
-
-CREATE UNIQUE INDEX idx_mv_top_productos_id ON mv_top_productos_por_categoria(id);
-
--- ============================================================================
--- FUNCIONES ANALÍTICAS
--- ============================================================================
-
--- Función: Calcular ARR (Ingreso Anual Recurrente)
-CREATE OR REPLACE FUNCTION calcular_arr(
-    p_meses_periodo INT DEFAULT 12
-)
-RETURNS TABLE (
-    segmento VARCHAR,
-    ingreso_mensual NUMERIC,
-    ingreso_anual NUMERIC
-) AS $$
+CREATE PROCEDURE sp_refrescar_vistas_materializadas()
 BEGIN
-    RETURN QUERY
+    TRUNCATE TABLE mv_tendencia_ventas_mensual;
+
+    INSERT INTO mv_tendencia_ventas_mensual
+        (mes, anio, numero_mes, ordenes, clientes, ingresos,
+         valor_promedio_orden, ingresos_entregados, ingresos_cancelados, ganancia_bruta)
+    SELECT
+        DATE(DATE_FORMAT(o.fecha_orden, '%Y-%m-01')) AS mes,
+        YEAR(o.fecha_orden) AS anio,
+        MONTH(o.fecha_orden) AS numero_mes,
+        COUNT(DISTINCT o.id) AS ordenes,
+        COUNT(DISTINCT o.cliente_id) AS clientes,
+        SUM(o.monto_total) AS ingresos,
+        AVG(o.monto_total) AS valor_promedio_orden,
+        SUM(CASE WHEN o.estado = 'entregado' THEN o.monto_total ELSE 0 END) AS ingresos_entregados,
+        SUM(CASE WHEN o.estado = 'cancelado' THEN o.monto_total ELSE 0 END) AS ingresos_cancelados,
+        SUM(o.monto_total) - SUM(COALESCE(io.cantidad * p.precio_costo, 0)) AS ganancia_bruta
+    FROM orden_encabezado o
+    LEFT JOIN orden_detalles io ON o.id = io.orden_id
+    LEFT JOIN productos p ON io.producto_id = p.id
+    WHERE o.estado <> 'cancelado'
+    GROUP BY DATE(DATE_FORMAT(o.fecha_orden, '%Y-%m-01')), YEAR(o.fecha_orden), MONTH(o.fecha_orden);
+
+    TRUNCATE TABLE mv_top_productos_por_categoria;
+
+    INSERT INTO mv_top_productos_por_categoria
+        (categoria, id, uuid, nombre, sku, veces_pedido, cantidad_total_vendida, ingresos_totales, ranking_categoria)
+    SELECT
+        p.categoria,
+        p.id,
+        p.uuid,
+        p.nombre,
+        p.sku,
+        COUNT(DISTINCT io.orden_id) AS veces_pedido,
+        COALESCE(SUM(io.cantidad), 0) AS cantidad_total_vendida,
+        COALESCE(SUM(io.total_linea), 0) AS ingresos_totales,
+        ROW_NUMBER() OVER (PARTITION BY p.categoria ORDER BY SUM(io.total_linea) DESC) AS ranking_categoria
+    FROM productos p
+    LEFT JOIN orden_detalles io ON p.id = io.producto_id
+    LEFT JOIN orden_encabezado o ON io.orden_id = o.id AND o.estado <> 'cancelado'
+    WHERE p.activo = 1
+    GROUP BY p.categoria, p.id, p.uuid, p.nombre, p.sku;
+END//
+
+DELIMITER ;
+
+-- ============================================================================
+-- PROCEDIMIENTOS ANALÍTICOS
+-- (MySQL no permite funciones de tabla: se exponen como PROCEDURE, invocar con
+--  CALL sp_calcular_arr(12); en vez de SELECT * FROM calcular_arr(12))
+-- ============================================================================
+
+DELIMITER //
+
+-- Procedimiento: Calcular ARR (Ingreso Anual Recurrente) por segmento
+CREATE PROCEDURE sp_calcular_arr(IN p_meses_periodo INT)
+BEGIN
     SELECT
         t.segmento,
-        ROUND(AVG(ventas_mensuales), 2) AS ingreso_mensual,
-        ROUND(AVG(ventas_mensuales) * 12, 2) AS ingreso_anual
+        ROUND(AVG(t.ventas_mensuales), 2) AS ingreso_mensual,
+        ROUND(AVG(t.ventas_mensuales) * 12, 2) AS ingreso_anual
     FROM (
         SELECT
             c2.segmento,
-            DATE_TRUNC('month', o.fecha_orden)::DATE AS mes,
+            DATE_FORMAT(o.fecha_orden, '%Y-%m-01') AS mes,
             SUM(o.monto_total) AS ventas_mensuales
         FROM orden_encabezado o
         JOIN clientes c2 ON o.cliente_id = c2.id
-        WHERE o.fecha_orden >= CURRENT_DATE - (p_meses_periodo || ' months')::INTERVAL
-        AND o.estado != 'cancelado'
-        GROUP BY c2.segmento, DATE_TRUNC('month', o.fecha_orden)
+        WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL p_meses_periodo MONTH
+          AND o.estado <> 'cancelado'
+        GROUP BY c2.segmento, DATE_FORMAT(o.fecha_orden, '%Y-%m-01')
     ) t
     GROUP BY t.segmento
     ORDER BY ingreso_anual DESC;
-END;
-$$ LANGUAGE plpgsql;
+END//
 
--- Función: Calcular churn de clientes
-CREATE OR REPLACE FUNCTION calcular_churn(
-    p_dias_periodo INT DEFAULT 90
-)
-RETURNS TABLE (
-    segmento VARCHAR,
-    total_clientes_inicio_periodo BIGINT,
-    clientes_perdidos BIGINT,
-    tasa_churn_pct NUMERIC
-) AS $$
+-- Procedimiento: Calcular churn de clientes
+CREATE PROCEDURE sp_calcular_churn(IN p_dias_periodo INT)
 BEGIN
-    RETURN QUERY
     WITH clientes_periodo AS (
         SELECT DISTINCT c.id, c.segmento
         FROM clientes c
         JOIN orden_encabezado o ON c.id = o.cliente_id
-        WHERE o.fecha_orden >= CURRENT_DATE - (p_dias_periodo || ' days')::INTERVAL
-        AND o.estado != 'cancelado'
+        WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL p_dias_periodo DAY
+          AND o.estado <> 'cancelado'
     ),
     clientes_perdidos AS (
         SELECT DISTINCT c.id, c.segmento
@@ -377,15 +401,15 @@ BEGIN
             SELECT DISTINCT c2.id
             FROM clientes c2
             JOIN orden_encabezado o ON c2.id = o.cliente_id
-            WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL '30 days'
-            AND o.estado != 'cancelado'
+            WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL 30 DAY
+              AND o.estado <> 'cancelado'
         )
         AND c.id IN (
             SELECT DISTINCT c3.id
             FROM clientes c3
             JOIN orden_encabezado o ON c3.id = o.cliente_id
-            WHERE o.fecha_orden >= CURRENT_DATE - (p_dias_periodo || ' days')::INTERVAL
-            AND o.estado != 'cancelado'
+            WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL p_dias_periodo DAY
+              AND o.estado <> 'cancelado'
         )
     )
     SELECT
@@ -397,74 +421,76 @@ BEGIN
     LEFT JOIN clientes_perdidos cper ON cp.id = cper.id
     GROUP BY cp.segmento
     ORDER BY tasa_churn_pct DESC;
-END;
-$$ LANGUAGE plpgsql;
+END//
 
--- Función: Forecast simple de ventas (tendencia lineal)
-CREATE OR REPLACE FUNCTION pronostico_ventas(
-    p_meses_pronostico INT DEFAULT 3,
-    p_meses_historico INT DEFAULT 12
-)
-RETURNS TABLE (
-    mes_pronostico DATE,
-    ingreso_pronosticado NUMERIC
-) AS $$
+-- Procedimiento: Forecast simple de ventas (regresión lineal manual;
+-- MySQL no tiene REGR_SLOPE/REGR_INTERCEPT)
+CREATE PROCEDURE sp_pronostico_ventas(IN p_meses_pronostico INT, IN p_meses_historico INT)
 BEGIN
-    RETURN QUERY
-    WITH datos_historicos AS (
+    WITH RECURSIVE datos_historicos AS (
         SELECT
-            DATE_TRUNC('month', o.fecha_orden)::DATE AS mes,
+            DATE_FORMAT(o.fecha_orden, '%Y-%m-01') AS mes,
             SUM(o.monto_total) AS ingresos,
-            ROW_NUMBER() OVER (ORDER BY DATE_TRUNC('month', o.fecha_orden)) AS seq_mes
+            ROW_NUMBER() OVER (ORDER BY DATE_FORMAT(o.fecha_orden, '%Y-%m-01')) AS seq_mes
         FROM orden_encabezado o
-        WHERE o.fecha_orden >= CURRENT_DATE - (p_meses_historico || ' months')::INTERVAL
-        AND o.estado != 'cancelado'
-        GROUP BY DATE_TRUNC('month', o.fecha_orden)
+        WHERE o.fecha_orden >= CURRENT_DATE - INTERVAL p_meses_historico MONTH
+          AND o.estado <> 'cancelado'
+        GROUP BY DATE_FORMAT(o.fecha_orden, '%Y-%m-01')
     ),
-    tendencia AS (
+    estadisticas AS (
         SELECT
-            REGR_SLOPE(ingresos, seq_mes) AS pendiente,
-            REGR_INTERCEPT(ingresos, seq_mes) AS intercepto,
+            COUNT(*) AS n,
+            SUM(seq_mes) AS sum_x,
+            SUM(ingresos) AS sum_y,
+            SUM(seq_mes * ingresos) AS sum_xy,
+            SUM(seq_mes * seq_mes) AS sum_x2,
             MAX(seq_mes) AS ultimo_seq,
             MAX(mes) AS ultimo_mes
         FROM datos_historicos
+    ),
+    tendencia AS (
+        SELECT
+            ultimo_seq,
+            ultimo_mes,
+            CASE WHEN (n * sum_x2 - sum_x * sum_x) = 0 THEN 0
+                 ELSE (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+            END AS pendiente,
+            CASE WHEN (n * sum_x2 - sum_x * sum_x) = 0 THEN sum_y / NULLIF(n, 0)
+                 ELSE (sum_y - ((n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)) * sum_x) / NULLIF(n, 0)
+            END AS intercepto
+        FROM estadisticas
+    ),
+    numeros_mes AS (
+        SELECT 1 AS n
+        UNION ALL SELECT n + 1 FROM numeros_mes WHERE n < 24
     )
     SELECT
-        (t.ultimo_mes + (n || ' months')::INTERVAL)::DATE AS mes_pronostico,
-        GREATEST(0, ROUND((t.intercepto + t.pendiente * (t.ultimo_seq + n))::NUMERIC, 2)) AS ingreso_pronosticado
+        DATE_ADD(t.ultimo_mes, INTERVAL nm.n MONTH) AS mes_pronostico,
+        GREATEST(0, ROUND(t.intercepto + t.pendiente * (t.ultimo_seq + nm.n), 2)) AS ingreso_pronosticado
     FROM tendencia t
-    CROSS JOIN GENERATE_SERIES(1, p_meses_pronostico) n
-    WHERE t.pendiente IS NOT NULL;
-END;
-$$ LANGUAGE plpgsql;
+    CROSS JOIN numeros_mes nm
+    WHERE nm.n <= p_meses_pronostico
+      AND t.pendiente IS NOT NULL;
+END//
 
--- Función: Análisis de cohortes
-CREATE OR REPLACE FUNCTION analisis_cohortes(
-    p_metrica VARCHAR DEFAULT 'ingresos'  -- 'ingresos', 'ordenes', 'retencion'
-)
-RETURNS TABLE (
-    mes_cohorte DATE,
-    meses_desde_primera_orden INT,
-    valor_metrica NUMERIC,
-    cantidad_clientes BIGINT
-) AS $$
+-- Procedimiento: Análisis de cohortes
+CREATE PROCEDURE sp_analisis_cohortes(IN p_metrica VARCHAR(20))
 BEGIN
-    RETURN QUERY
     WITH cohortes_clientes AS (
         SELECT
             c.id,
-            DATE_TRUNC('month', MIN(o.fecha_orden))::DATE AS mes_cohorte,
-            DATE_TRUNC('month', o.fecha_orden)::DATE AS mes_orden
+            DATE_FORMAT(MIN(o.fecha_orden), '%Y-%m-01') AS mes_cohorte,
+            DATE_FORMAT(o.fecha_orden, '%Y-%m-01') AS mes_orden
         FROM clientes c
         JOIN orden_encabezado o ON c.id = o.cliente_id
-        WHERE o.estado != 'cancelado'
-        GROUP BY c.id, DATE_TRUNC('month', o.fecha_orden)
+        WHERE o.estado <> 'cancelado'
+        GROUP BY c.id, DATE_FORMAT(o.fecha_orden, '%Y-%m-01')
     ),
     cohortes_con_metricas AS (
         SELECT
             cc.mes_cohorte,
-            ((EXTRACT(YEAR FROM cc.mes_orden) - EXTRACT(YEAR FROM cc.mes_cohorte)) * 12 +
-             (EXTRACT(MONTH FROM cc.mes_orden) - EXTRACT(MONTH FROM cc.mes_cohorte)))::INT AS meses_transcurridos,
+            (YEAR(cc.mes_orden) - YEAR(cc.mes_cohorte)) * 12
+                + (MONTH(cc.mes_orden) - MONTH(cc.mes_cohorte)) AS meses_transcurridos,
             CASE p_metrica
                 WHEN 'ingresos' THEN SUM(o.monto_total)
                 WHEN 'ordenes' THEN COUNT(DISTINCT o.id)
@@ -472,43 +498,23 @@ BEGIN
             END AS metrica,
             COUNT(DISTINCT cc.id) AS clientes
         FROM cohortes_clientes cc
-        JOIN orden_encabezado o ON cc.id = o.cliente_id AND DATE_TRUNC('month', o.fecha_orden) = cc.mes_orden
-        WHERE o.estado != 'cancelado'
-        GROUP BY cc.mes_cohorte, ((EXTRACT(YEAR FROM cc.mes_orden) - EXTRACT(YEAR FROM cc.mes_cohorte)) * 12 +
-             (EXTRACT(MONTH FROM cc.mes_orden) - EXTRACT(MONTH FROM cc.mes_cohorte)))
+        JOIN orden_encabezado o
+            ON cc.id = o.cliente_id AND DATE_FORMAT(o.fecha_orden, '%Y-%m-01') = cc.mes_orden
+        WHERE o.estado <> 'cancelado'
+        GROUP BY cc.mes_cohorte,
+                 (YEAR(cc.mes_orden) - YEAR(cc.mes_cohorte)) * 12 + (MONTH(cc.mes_orden) - MONTH(cc.mes_cohorte))
     )
     SELECT
         ccm.mes_cohorte,
         ccm.meses_transcurridos,
-        ROUND(ccm.metrica, 2),
-        ccm.clientes
+        ROUND(ccm.metrica, 2) AS valor_metrica,
+        ccm.clientes AS cantidad_clientes
     FROM cohortes_con_metricas ccm
     WHERE ccm.meses_transcurridos >= 0
     ORDER BY ccm.mes_cohorte DESC, ccm.meses_transcurridos ASC;
-END;
-$$ LANGUAGE plpgsql;
+END//
 
--- ============================================================================
--- ACTUALIZAR VISTAS MATERIALIZADAS
--- ============================================================================
-
-CREATE OR REPLACE FUNCTION refrescar_vistas_materializadas()
-RETURNS TABLE (nombre_vista TEXT, estado TEXT, tiempo_refresco INTERVAL) AS $$
-DECLARE
-    v_inicio TIMESTAMP;
-    v_fin TIMESTAMP;
-BEGIN
-    v_inicio := CURRENT_TIMESTAMP;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_tendencia_ventas_mensual;
-    v_fin := CURRENT_TIMESTAMP;
-    RETURN QUERY SELECT 'mv_tendencia_ventas_mensual'::TEXT, 'completado'::TEXT, (v_fin - v_inicio);
-
-    v_inicio := CURRENT_TIMESTAMP;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_top_productos_por_categoria;
-    v_fin := CURRENT_TIMESTAMP;
-    RETURN QUERY SELECT 'mv_top_productos_por_categoria'::TEXT, 'completado'::TEXT, (v_fin - v_inicio);
-END;
-$$ LANGUAGE plpgsql;
+DELIMITER ;
 
 -- ============================================================================
 -- FIN DE VISTAS Y FUNCIONES ANALÍTICAS

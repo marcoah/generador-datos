@@ -8,6 +8,11 @@
 -- 3. Ser fácil de limpiar y resetear para pruebas
 -- ============================================================================
 
+-- Requerido por la columna calculada PERSISTED de dbo.orden_detalles
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 -- ============================================================================
 -- DIMENSIÓN: CLIENTES
 -- ============================================================================
@@ -195,12 +200,12 @@ CREATE TABLE dbo.orden_encabezado (
 );
 GO
 
-CREATE INDEX idx_ordenes_cliente_id  ON dbo.ordenes (cliente_id);
-CREATE INDEX idx_ordenes_vendedor_id ON dbo.ordenes (vendedor_id);
-CREATE INDEX idx_ordenes_fecha_orden ON dbo.ordenes (fecha_orden);
-CREATE INDEX idx_ordenes_estado      ON dbo.ordenes (estado);
-CREATE INDEX idx_ordenes_estado_pago ON dbo.ordenes (estado_pago);
-CREATE INDEX idx_ordenes_creado_en   ON dbo.ordenes (creado_en);
+CREATE INDEX idx_orden_encabezado_cliente_id  ON dbo.orden_encabezado (cliente_id);
+CREATE INDEX idx_orden_encabezado_vendedor_id ON dbo.orden_encabezado (vendedor_id);
+CREATE INDEX idx_orden_encabezado_fecha_orden ON dbo.orden_encabezado (fecha_orden);
+CREATE INDEX idx_orden_encabezado_estado      ON dbo.orden_encabezado (estado);
+CREATE INDEX idx_orden_encabezado_estado_pago ON dbo.orden_encabezado (estado_pago);
+CREATE INDEX idx_orden_encabezado_creado_en   ON dbo.orden_encabezado (creado_en);
 GO
 
 -- ============================================================================
@@ -230,14 +235,14 @@ CREATE TABLE dbo.orden_detalles (
     creado_en            DATETIME2 NOT NULL DEFAULT GETDATE(),
     actualizado_en       DATETIME2 NOT NULL DEFAULT GETDATE(),
 
-    CONSTRAINT fk_items_orden_orden    FOREIGN KEY (orden_id)    REFERENCES dbo.ordenes   (id) ON DELETE CASCADE,
-    CONSTRAINT fk_items_orden_producto FOREIGN KEY (producto_id) REFERENCES dbo.productos (id)
+    CONSTRAINT fk_orden_detalles_orden    FOREIGN KEY (orden_id)    REFERENCES dbo.orden_encabezado   (id) ON DELETE CASCADE,
+    CONSTRAINT fk_orden_detalles_producto FOREIGN KEY (producto_id) REFERENCES dbo.productos (id)
 );
 GO
 
-CREATE INDEX idx_items_orden_orden_id   ON dbo.items_orden (orden_id);
-CREATE INDEX idx_items_orden_producto_id ON dbo.items_orden (producto_id);
-CREATE INDEX idx_items_orden_completado  ON dbo.items_orden (completado);
+CREATE INDEX idx_orden_detalles_orden_id   ON dbo.orden_detalles (orden_id);
+CREATE INDEX idx_orden_detalles_producto_id ON dbo.orden_detalles (producto_id);
+CREATE INDEX idx_orden_detalles_completado  ON dbo.orden_detalles (completado);
 GO
 
 -- ============================================================================
@@ -262,7 +267,7 @@ CREATE TABLE dbo.pagos (
     creado_en          DATETIME2 NOT NULL DEFAULT GETDATE(),
 
     CONSTRAINT uq_pagos_uuid  UNIQUE (uuid),
-    CONSTRAINT fk_pagos_orden FOREIGN KEY (orden_id) REFERENCES dbo.ordenes (id)
+    CONSTRAINT fk_pagos_orden FOREIGN KEY (orden_id) REFERENCES dbo.orden_encabezado (id)
 );
 GO
 
@@ -295,13 +300,131 @@ CREATE TABLE dbo.devoluciones (
     actualizado_en    DATETIME2 NOT NULL DEFAULT GETDATE(),
 
     CONSTRAINT uq_devoluciones_uuid  UNIQUE (uuid),
-    CONSTRAINT fk_devoluciones_orden FOREIGN KEY (orden_id) REFERENCES dbo.ordenes (id)
+    CONSTRAINT fk_devoluciones_orden FOREIGN KEY (orden_id) REFERENCES dbo.orden_encabezado (id)
 );
 GO
 
 CREATE INDEX idx_devoluciones_orden_id        ON dbo.devoluciones (orden_id);
 CREATE INDEX idx_devoluciones_fecha_devolucion ON dbo.devoluciones (fecha_devolucion);
 CREATE INDEX idx_devoluciones_estado           ON dbo.devoluciones (estado);
+GO
+
+-- ============================================================================
+-- INTERACCIONES CON CLIENTES (CRM)
+-- ============================================================================
+IF OBJECT_ID('dbo.interacciones_clientes', 'U') IS NULL
+CREATE TABLE dbo.interacciones_clientes (
+    id                         BIGINT IDENTITY(1,1) PRIMARY KEY,
+    uuid                       UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    cliente_id                 BIGINT NOT NULL,
+    vendedor_id                BIGINT NULL,
+
+    -- Valores: llamada, email, reunion, demo, soporte, seguimiento
+    tipo_interaccion           NVARCHAR(50) NOT NULL,
+
+    asunto                     NVARCHAR(255) NULL,
+    notas                      NVARCHAR(MAX) NULL,
+
+    resultado                  NVARCHAR(100) NULL,
+    fecha_proximo_seguimiento  DATE NULL,
+
+    fecha_interaccion          DATETIME2 NOT NULL DEFAULT GETDATE(),
+    duracion_minutos           INT NULL,
+
+    creado_en                  DATETIME2 NOT NULL DEFAULT GETDATE(),
+    actualizado_en             DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT uq_interacciones_clientes_uuid UNIQUE (uuid),
+    CONSTRAINT fk_interacciones_cliente  FOREIGN KEY (cliente_id)  REFERENCES dbo.clientes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_interacciones_vendedor FOREIGN KEY (vendedor_id) REFERENCES dbo.vendedores (id)
+);
+GO
+
+CREATE INDEX idx_interacciones_clientes_cliente_id  ON dbo.interacciones_clientes (cliente_id);
+CREATE INDEX idx_interacciones_clientes_fecha       ON dbo.interacciones_clientes (fecha_interaccion);
+CREATE INDEX idx_interacciones_clientes_vendedor_id ON dbo.interacciones_clientes (vendedor_id);
+GO
+
+-- ============================================================================
+-- CAMPAÑAS DE MARKETING
+-- ============================================================================
+IF OBJECT_ID('dbo.campanas', 'U') IS NULL
+CREATE TABLE dbo.campanas (
+    id                   BIGINT IDENTITY(1,1) PRIMARY KEY,
+    uuid                 UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
+    nombre               NVARCHAR(255) NOT NULL,
+    descripcion          NVARCHAR(MAX) NULL,
+
+    -- Valores: email, webinar, feria, promocion, estacional
+    tipo_campana         NVARCHAR(100) NULL,
+    -- Valores: email, redes_sociales, correo_directo, eventos, referido, organico
+    canal                NVARCHAR(50) NULL,
+
+    fecha_inicio         DATE NOT NULL,
+    fecha_fin            DATE NULL,
+
+    presupuesto          DECIMAL(15,2) NULL,
+    gasto_real           DECIMAL(15,2) NOT NULL DEFAULT 0,
+
+    impresiones          INT NOT NULL DEFAULT 0,
+    clics                INT NOT NULL DEFAULT 0,
+    conversiones         INT NOT NULL DEFAULT 0,
+    ingresos_generados   DECIMAL(15,2) NOT NULL DEFAULT 0,
+
+    -- Valores: planificada, activa, completada, cancelada
+    estado               NVARCHAR(50) NOT NULL DEFAULT 'activa',
+
+    creado_en            DATETIME2 NOT NULL DEFAULT GETDATE(),
+    actualizado_en       DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT uq_campanas_uuid UNIQUE (uuid)
+);
+GO
+
+CREATE INDEX idx_campanas_fecha_inicio ON dbo.campanas (fecha_inicio);
+CREATE INDEX idx_campanas_estado       ON dbo.campanas (estado);
+GO
+
+-- ============================================================================
+-- RELACIÓN: CLIENTES - CAMPAÑAS
+-- ============================================================================
+IF OBJECT_ID('dbo.campanas_clientes', 'U') IS NULL
+CREATE TABLE dbo.campanas_clientes (
+    id                BIGINT IDENTITY(1,1) PRIMARY KEY,
+    campana_id        BIGINT NOT NULL,
+    cliente_id        BIGINT NOT NULL,
+
+    fecha_contacto    DATETIME2 NULL,
+    abierto           BIT NOT NULL DEFAULT 0,
+    hizo_clic         BIT NOT NULL DEFAULT 0,
+    convirtio         BIT NOT NULL DEFAULT 0,
+    fecha_conversion  DATETIME2 NULL,
+
+    creado_en         DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT uq_campana_cliente UNIQUE (campana_id, cliente_id),
+    CONSTRAINT fk_campanas_clientes_campana FOREIGN KEY (campana_id) REFERENCES dbo.campanas (id) ON DELETE CASCADE,
+    CONSTRAINT fk_campanas_clientes_cliente FOREIGN KEY (cliente_id) REFERENCES dbo.clientes (id) ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX idx_campanas_clientes_campana_id ON dbo.campanas_clientes (campana_id);
+CREATE INDEX idx_campanas_clientes_cliente_id ON dbo.campanas_clientes (cliente_id);
+GO
+
+-- ============================================================================
+-- TABLA DE AUDITORÍA / CONTROL DE CARGAS
+-- ============================================================================
+IF OBJECT_ID('dbo.cargas_datos', 'U') IS NULL
+CREATE TABLE dbo.cargas_datos (
+    id                    BIGINT IDENTITY(1,1) PRIMARY KEY,
+    fecha_carga           DATETIME2 NOT NULL DEFAULT GETDATE(),
+    -- Valores: inicial, incremental, refresco, prueba
+    tipo_carga            NVARCHAR(100) NULL,
+    registros_afectados   INT NULL,
+    estado                NVARCHAR(50) NULL,
+    notas                 NVARCHAR(MAX) NULL
+);
 GO
 
 -- ============================================================================
@@ -317,16 +440,16 @@ EXEC sys.sp_addextendedproperty
 
 EXEC sys.sp_addextendedproperty
     @name = N'MS_Description', @value = N'Tabla de hechos de órdenes de ventas',
-    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'ordenes';
+    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'orden_encabezado';
 
 EXEC sys.sp_addextendedproperty
     @name = N'MS_Description', @value = N'Total final: subtotal - descuento + impuesto + envío',
-    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'ordenes',
+    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'orden_encabezado',
     @level2type = N'COLUMN', @level2name = N'monto_total';
 
 EXEC sys.sp_addextendedproperty
     @name = N'MS_Description', @value = N'Calculado: cantidad * precio_unitario * (1 - descuento%)',
-    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'items_orden',
+    @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'orden_detalles',
     @level2type = N'COLUMN', @level2name = N'total_linea';
 GO
 
@@ -336,7 +459,7 @@ GO
 
 -- Trigger: Actualizar total de la orden cuando se insertan/modifican/eliminan ítems
 CREATE OR ALTER TRIGGER trg_actualizar_total_orden
-ON dbo.items_orden
+ON dbo.orden_detalles
 AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
@@ -352,19 +475,19 @@ BEGIN
 
     UPDATE o
     SET
-        monto_total    = COALESCE((SELECT SUM(io.total_linea) FROM dbo.items_orden io WHERE io.orden_id = o.id), 0)
+        monto_total    = COALESCE((SELECT SUM(io.total_linea) FROM dbo.orden_detalles io WHERE io.orden_id = o.id), 0)
                          + COALESCE(o.monto_impuesto, 0)
                          + COALESCE(o.costo_envio, 0)
                          - COALESCE(o.monto_descuento, 0),
         actualizado_en = GETDATE()
-    FROM dbo.ordenes o
+    FROM dbo.orden_encabezado o
     INNER JOIN @ordenes_afectadas oa ON o.id = oa.orden_id;
 END;
 GO
 
 -- Trigger: Actualizar valor de vida del cliente cuando cambian órdenes
 CREATE OR ALTER TRIGGER trg_actualizar_valor_vida_cliente
-ON dbo.ordenes
+ON dbo.orden_encabezado
 AFTER INSERT, UPDATE
 AS
 BEGIN
@@ -373,10 +496,10 @@ BEGIN
     UPDATE c
     SET
         valor_vida_total    = COALESCE(
-            (SELECT SUM(o.monto_total) FROM dbo.ordenes o
+            (SELECT SUM(o.monto_total) FROM dbo.orden_encabezado o
              WHERE o.cliente_id = c.id AND o.estado <> 'cancelado'), 0),
         fecha_ultima_compra = (
-            SELECT MAX(o.fecha_orden) FROM dbo.ordenes o
+            SELECT MAX(o.fecha_orden) FROM dbo.orden_encabezado o
             WHERE o.cliente_id = c.id AND o.estado <> 'cancelado'),
         actualizado_en      = GETDATE()
     FROM dbo.clientes c
