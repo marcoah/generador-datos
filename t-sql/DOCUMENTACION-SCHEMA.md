@@ -301,7 +301,7 @@ EXEC sys.sp_addextendedproperty
 
 ```
 clientes ◄──────┬────► orden_encabezado ──► orden_detalles ◄─── productos
-                │        ▲
+                │             ▲
                 ├──────────► pagos
                 ├──────────► devoluciones
                 ├──────────► interacciones_clientes ◄─── vendedores
@@ -399,10 +399,11 @@ EXEC dbo.sp_refrescar_vistas_materializadas;
 ### 1️⃣ Instalación Inicial
 
 ```sql
--- Ejecutar en orden sobre la base de datos destino:
--- 1. ss-01-schema.sql             → Tablas, triggers, SP de registro
--- 2. ss-02-vistas-y-funciones.sql → Vistas, funciones analíticas, SP de refresco
--- 3. ss-03-generacion-datos.sql   → SP y funciones de generación de datos
+-- Ejecutar en orden:
+-- 0. 00-inicializa-bd.sql          → Crea la base de datos ventas_test (conectado a master)
+-- 1. 01-schema.sql                 → Tablas, triggers, SP de registro
+-- 2. 02-vistas-y-funciones.sql     → Vistas, funciones analíticas, SP de refresco
+-- 3. 03-generacion-datos.sql       → SP y funciones de generación de datos
 ```
 
 ### 2️⃣ Generar Datos de Prueba
