@@ -3,6 +3,9 @@
 -- SQL Server 2016+
 -- ============================================================================
 
+USE ventas_test;
+GO
+
 -- Requerido porque dbo.orden_detalles tiene una columna calculada PERSISTED
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;

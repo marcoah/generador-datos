@@ -8,6 +8,9 @@
 -- 3. Ser fácil de limpiar y resetear para pruebas
 -- ============================================================================
 
+USE ventas_test;
+GO
+
 -- Requerido por la columna calculada PERSISTED de dbo.orden_detalles
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
