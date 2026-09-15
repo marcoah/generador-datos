@@ -511,7 +511,7 @@ GO
 -- PROCEDIMIENTO: Registrar en cargas_datos
 -- (En SQL Server usamos SP en lugar de función para operaciones DML)
 -- ============================================================================
-CREATE OR ALTER PROCEDURE dbo.sp_registrar_carga_datos
+CREATE OR ALTER PROCEDURE dbo.registrar_carga_datos
     @tipo_carga          NVARCHAR(100),
     @registros_afectados INT,
     @estado              NVARCHAR(50) = 'completado',
